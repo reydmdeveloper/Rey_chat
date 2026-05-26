@@ -1,0 +1,148 @@
+{% extends "base.html" %}
+
+{% block title %}Verify Code - REYDM Chat{% endblock %}
+
+{% block extra_head %}
+<style>
+    .verify-wrapper {
+        width: 100%;
+        max-width: 400px;
+        padding: 40px;
+        animation: fadeIn 0.5s ease-out;
+    }
+    .logo {
+        text-align: center;
+        margin-bottom: 25px;
+    }
+    .logo i {
+        font-size: 40px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 8px;
+    }
+    .logo h1 {
+        font-size: 22px;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }
+    .info-text {
+        text-align: center;
+        color: var(--text-muted);
+        font-size: 14px;
+        margin-bottom: 25px;
+        line-height: 1.5;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+    .btn-secondary {
+        width: 100%;
+        padding: 14px;
+        background: transparent;
+        border: 1px solid var(--border-color);
+        color: var(--text-muted);
+        border-radius: 8px;
+        font-weight: 600;
+        cursor: pointer;
+        margin-top: 12px;
+        transition: all 0.2s;
+    }
+    .btn-secondary:hover:not(:disabled) {
+        border-color: var(--primary);
+        color: white;
+    }
+    .btn-secondary:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-panel verify-wrapper">
+    <div class="logo">
+        <img src="/Images/REYDM_LOGO.png" alt="REYDM Logo" style="width: 80px; height: auto; margin-bottom: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.2));">
+        <h1>Verify Email</h1>
+    </div>
+    <div class="info-text">
+        We sent a 6-digit verification code to <br><b style="color: var(--text-main);">{{ email }}</b>.<br>Please enter it below to activate your account.
+    </div>
+    <form method="POST" action="/verify-otp">
+        <div class="input-group">
+            <input type="text" name="otp" id="otpCode" placeholder="Enter 6-digit Code" maxlength="6" pattern="\d{6}" required style="text-align: center; font-size: 18px; letter-spacing: 4px; font-weight: bold;">
+        </div>
+        <button type="submit" class="btn-primary">Verify Code</button>
+    </form>
+    
+    <button id="resendBtn" class="btn-secondary" disabled>Resend Code (60s)</button>
+    
+    <div style="text-align: center; margin-top: 25px;">
+        <a href="/register" style="color: var(--text-muted); font-size: 14px; text-decoration: none; font-weight: 500; transition: color 0.2s;" onmouseover="this.style.color='var(--primary)'" onmouseout="this.style.color='var(--text-muted)'">← Back to Sign Up</a>
+    </div>
+</div>
+
+<script>
+    // Resend OTP logic with countdown timer
+    let cooldown = 60;
+    const resendBtn = document.getElementById('resendBtn');
+    
+    function startTimer() {
+        resendBtn.disabled = true;
+        let interval = setInterval(() => {
+            cooldown--;
+            if (cooldown <= 0) {
+                clearInterval(interval);
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Resend Code";
+                cooldown = 60;
+            } else {
+                resendBtn.textContent = `Resend Code (${cooldown}s)`;
+            }
+        }, 1000);
+    }
+    
+    // Start countdown immediately on load
+    startTimer();
+    
+    resendBtn.addEventListener('click', async () => {
+        resendBtn.disabled = true;
+        resendBtn.textContent = "Sending...";
+        
+        try {
+            const res = await fetch('/resend-otp', {
+                method: 'POST'
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                const container = document.querySelector('.flash-container') || createFlashContainer();
+                const flash = document.createElement('div');
+                flash.className = 'flash-msg success';
+                flash.style.animation = 'slideIn 4s forwards';
+                flash.textContent = data.message;
+                container.appendChild(flash);
+                startTimer();
+            } else {
+                alert(data.message || "Failed to resend OTP.");
+                resendBtn.disabled = false;
+                resendBtn.textContent = "Resend Code";
+            }
+        } catch (err) {
+            console.error(err);
+            alert("Error resending verification code.");
+            resendBtn.disabled = false;
+            resendBtn.textContent = "Resend Code";
+        }
+    });
+
+    function createFlashContainer() {
+        const c = document.createElement('div');
+        c.className = 'flash-container';
+        c.style.cssText = 'position: fixed; top: 20px; right: 20px; z-index: 9999;';
+        document.body.appendChild(c);
+        return c;
+    }
+</script>
+{% endblock %}

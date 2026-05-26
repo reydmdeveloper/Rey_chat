@@ -1,0 +1,244 @@
+{% extends "base.html" %}
+
+{% block title %}Admin Panel - REYDM Chat{% endblock %}
+
+{% block extra_head %}
+<style>
+    .admin-container {
+        width: 100%;
+        max-width: 900px;
+        height: 90vh;
+        display: flex;
+        flex-direction: column;
+        padding: 30px;
+        animation: fadeIn 0.4s ease-out;
+    }
+    .header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 30px;
+    }
+    .header h2 {
+        font-size: 24px;
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+    .btn-outline {
+        padding: 10px 20px;
+        border: 1px solid var(--border-color);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.05);
+        color: var(--text-main);
+        text-decoration: none;
+        transition: all 0.2s;
+    }
+    .btn-outline:hover {
+        background: rgba(255, 255, 255, 0.1);
+        border-color: var(--text-muted);
+    }
+    .grid {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 30px;
+        flex: 1;
+        overflow-y: auto;
+    }
+    .card {
+        background: rgba(0, 0, 0, 0.2);
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 25px;
+    }
+    .card h3 {
+        margin-bottom: 20px;
+        font-size: 18px;
+        color: var(--accent);
+    }
+    .user-table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 15px;
+    }
+    .user-table th, .user-table td {
+        padding: 12px;
+        text-align: left;
+        border-bottom: 1px solid var(--border-color);
+    }
+    .user-table th {
+        color: var(--text-muted);
+        font-weight: 500;
+        font-size: 14px;
+    }
+    .role-badge {
+        padding: 4px 8px;
+        border-radius: 4px;
+        font-size: 12px;
+        font-weight: 600;
+    }
+    .role-admin { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
+    .role-user { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-panel admin-container">
+    <div class="header">
+        <h2><i class="fa-solid fa-shield-halved"></i> Admin Settings</h2>
+        <a href="/chat" class="btn-outline"><i class="fa-solid fa-arrow-left"></i> Back to Chat</a>
+    </div>
+
+    <div class="grid">
+        <!-- Local Storage Config -->
+        <div class="card">
+            <h3><i class="fa-solid fa-hard-drive"></i> Local Storage Config</h3>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Storage is fully automated! File uploads are saved directly to a dedicated local directory on your C: drive.
+            </p>
+            <div style="background: rgba(255,255,255,0.03); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; margin-bottom: 15px;">
+                <div style="margin-bottom: 10px;">
+                    <span style="color: var(--text-muted); font-size: 11px; display: block; margin-bottom: 4px; font-weight: 600; letter-spacing: 0.5px;">ACTIVE STORAGE PATH</span>
+                    <strong style="color: var(--accent); font-family: monospace; font-size: 13px; word-break: break-all;">{{ upload_folder }}</strong>
+                </div>
+                <div style="display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 10px;">
+                    <div>
+                        <span style="color: var(--text-muted); font-size: 11px; display: block; font-weight: 600;">TOTAL FILES</span>
+                        <strong style="color: var(--text-main); font-size: 15px;">{{ upload_count }} Files</strong>
+                    </div>
+                    <div style="text-align: right;">
+                        <span style="color: var(--text-muted); font-size: 11px; display: block; font-weight: 600;">STORAGE USED</span>
+                        <strong style="color: var(--text-main); font-size: 15px;">{{ upload_size_mb }} MB</strong>
+                    </div>
+                </div>
+            </div>
+            <div style="font-size: 12px; color: var(--success); display: flex; align-items: center; gap: 6px; font-weight: 500;">
+                <i class="fa-solid fa-circle-check"></i> Storage folder created and active.
+            </div>
+        </div>
+
+        <!-- Add User -->
+        <div class="card">
+            <h3><i class="fa-solid fa-user-plus"></i> Add New User</h3>
+            <form method="POST">
+                <input type="hidden" name="action" value="add_user">
+                <div class="input-group">
+                    <input type="text" name="full_name" placeholder="Full Name" required>
+                </div>
+                <div class="input-group">
+                    <input type="email" name="email" placeholder="Email Address" required>
+                </div>
+                <div class="input-group">
+                    <input type="password" name="password" placeholder="Password" required>
+                </div>
+                <div class="input-group">
+                    <select name="role">
+                        <option value="user">User</option>
+                        <option value="admin">Admin</option>
+                    </select>
+                </div>
+                <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, var(--success), #059669);">Create User</button>
+            </form>
+        </div>
+
+        <!-- Global Theme Settings -->
+        <div class="card" style="grid-column: span 2;">
+            <h3><i class="fa-solid fa-palette"></i> Global System Theme Palette</h3>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Select a global system theme to apply instantly to all users across the platform. You can choose from 12+ highly attractive solid colors or rich linear gradients!
+            </p>
+            <div class="theme-palette-grid" style="display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 15px; margin-bottom: 25px;">
+                {% for name, theme in preset_themes.items() %}
+                <div class="theme-card" onclick="selectTheme('{{ name }}')" style="background: rgba(255,255,255,0.03); border: 2px solid {% if current_theme.name == name %}var(--primary){% else %}var(--border-color){% endif %}; border-radius: 12px; padding: 15px; cursor: pointer; transition: all 0.2s; position: relative;">
+                    <!-- Preview Swatch -->
+                    <div style="display: flex; gap: 8px; align-items: center; margin-bottom: 12px;">
+                        {% if theme.is_gradient %}
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ theme.gradient_style }}; border: 1px solid rgba(255,255,255,0.15);"></div>
+                        {% else %}
+                        <div style="width: 32px; height: 32px; border-radius: 50%; background: {{ theme.primary }}; border: 1px solid rgba(255,255,255,0.15);"></div>
+                        {% endif %}
+                        <span style="font-size: 10px; background: {% if theme.is_gradient %}rgba(14, 165, 233, 0.15){% else %}rgba(255,255,255,0.06){% endif %}; color: {% if theme.is_gradient %}var(--accent){% else %}var(--text-muted){% endif %}; padding: 2px 8px; border-radius: 10px; font-weight: 600; text-transform: uppercase;">
+                            {% if theme.is_gradient %}GRADIENT{% else %}SOLID{% endif %}
+                        </span>
+                    </div>
+                    <div style="font-weight: 600; font-size: 14px; margin-bottom: 4px; color: var(--text-main);">{{ name }}</div>
+                    <div style="font-size: 11px; color: var(--text-muted);">
+                        Primary: <span style="font-family: monospace; color: {{ theme.primary }}; font-weight: 600;">{{ theme.primary }}</span>
+                    </div>
+                    
+                    {% if current_theme.name == name %}
+                    <div class="theme-checkmark" style="position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                        <i class="fa-solid fa-check"></i>
+                    </div>
+                    {% endif %}
+                </div>
+                {% endfor %}
+            </div>
+            
+            <form id="themeForm" method="POST">
+                <input type="hidden" name="action" value="update_theme">
+                <input type="hidden" name="theme_name" id="selectedThemeName" value="{{ current_theme.name }}">
+                <button type="submit" class="btn-primary" style="max-width: 250px;">Save Theme Globally</button>
+            </form>
+        </div>
+
+        <!-- User List -->
+        <div class="card" style="grid-column: span 2;">
+            <h3><i class="fa-solid fa-users"></i> Registered Users</h3>
+            <div style="overflow-x: auto;">
+                <table class="user-table">
+                    <thead>
+                        <tr>
+                            <th>ID</th>
+                            <th>Full Name</th>
+                            <th>Email</th>
+                            <th>Role</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        {% for user in users %}
+                        <tr>
+                            <td>#{{ user.id }}</td>
+                            <td>{{ user.full_name }}</td>
+                            <td>{{ user.email }}</td>
+                            <td>
+                                <span class="role-badge role-{{ user.role }}">{{ user.role|upper }}</span>
+                            </td>
+                        </tr>
+                        {% endfor %}
+                    </tbody>
+                </table>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    function selectTheme(name) {
+        document.getElementById('selectedThemeName').value = name;
+        document.querySelectorAll('.theme-card').forEach(card => {
+            card.style.borderColor = 'var(--border-color)';
+            // Remove checkmarks
+            const check = card.querySelector('.theme-checkmark');
+            if (check) check.remove();
+        });
+        
+        // Find clicked card
+        const cards = document.querySelectorAll('.theme-card');
+        for (let card of cards) {
+            const clickAttr = card.getAttribute('onclick');
+            if (clickAttr && clickAttr.includes(name)) {
+                card.style.borderColor = 'var(--primary)';
+                // Append checkmark
+                const checkHtml = `
+                    <div class="theme-checkmark" style="position: absolute; top: 10px; right: 10px; width: 18px; height: 18px; border-radius: 50%; background: var(--primary); color: white; display: flex; align-items: center; justify-content: center; font-size: 10px;">
+                        <i class="fa-solid fa-check"></i>
+                    </div>
+                `;
+                card.insertAdjacentHTML('beforeend', checkHtml);
+                break;
+            }
+        }
+    }
+</script>
+{% endblock %}

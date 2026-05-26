@@ -1,0 +1,207 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{% block title %}REYDM Chat{% endblock %}</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            /* Global Theme variables (Dark Theme by default) */
+            --bg-color: {{ global_theme.bg_dark }};
+            --panel-bg: {{ global_theme.panel_dark }};
+            --border-color: {{ global_theme.border_dark }};
+            --text-main: #f3f4f6; /* Off-white */
+            --text-muted: #9ca3af; /* Muted gray */
+            --primary: {{ global_theme.primary }};
+            --primary-hover: {{ global_theme.primary_hover }};
+            --accent: {{ global_theme.accent }};
+            --danger: #ef4444;
+            --success: #10b981;
+            --glass-blur: blur(20px);
+            --msg-mine: {{ global_theme.msg_mine_dark }};
+            --msg-theirs: {{ global_theme.msg_theirs_dark }};
+            /* Aliases used by chat.html */
+            --glass-bg: {{ global_theme.panel_dark }};
+            --glass-border: {{ global_theme.border_dark }};
+            --text-primary: #f3f4f6;
+            --text-secondary: #cbd5e1;
+            
+            /* High-Contrast Bubble and Link Colors */
+            --bubble-mine-text: #ffffff;
+            --bubble-theirs-text: #f3f4f6;
+            --link-mine: #fde047; /* Vibrant gold/yellow for perfect contrast on dark theme primary/accent colors */
+            --link-mine-hover: #fef08a;
+            --link-theirs: #38bdf8; /* Vibrant sky blue for contrast on dark theirs bubbles */
+            --link-theirs-hover: #7dd3fc;
+            
+            /* Dynamic Brand Gradient */
+            {% if global_theme.is_gradient and global_theme.gradient_style %}
+            --primary-gradient: {{ global_theme.gradient_style }};
+            {% else %}
+            --primary-gradient: linear-gradient(135deg, var(--primary), var(--accent));
+            {% endif %}
+        }
+
+        [data-theme="light"] {
+            /* Dynamic Light Theme variables */
+            --bg-color: {{ global_theme.bg_light }};
+            --panel-bg: {{ global_theme.panel_light }};
+            --border-color: {{ global_theme.border_light }};
+            --text-main: #0f172a; /* Slate 900 for modern elegant look */
+            --text-muted: #64748b; /* Slate 500 for secondary text */
+            --primary: {{ global_theme.primary }};
+            --primary-hover: {{ global_theme.primary_hover }};
+            --accent: {{ global_theme.accent }};
+            --danger: #ef4444;
+            --success: #10b981;
+            --glass-blur: blur(20px);
+            --msg-mine: {{ global_theme.msg_mine_light }};
+            --msg-theirs: {{ global_theme.msg_theirs_light }};
+            /* Aliases used by chat.html */
+            --glass-bg: {{ global_theme.panel_light }};
+            --glass-border: {{ global_theme.border_light }};
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
+
+            /* High-Contrast Bubble and Link Colors for Light Theme */
+            --bubble-mine-text: #ffffff;
+            --bubble-theirs-text: #0f172a;
+            --link-mine: #fff59d; /* Pastel yellow that pops perfectly on all bright light primary colors */
+            --link-mine-hover: #fef08a;
+            --link-theirs: #1d4ed8; /* Vibrant deep royal blue for high legibility on light theirs bubbles */
+            --link-theirs-hover: #1e40af;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            background-image: radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 40%),
+                              radial-gradient(circle at bottom left, rgba(56, 189, 248, 0.08), transparent 40%);
+            color: var(--text-main);
+            height: 100vh;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+
+        .glass-panel {
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            -webkit-backdrop-filter: var(--glass-blur);
+            border: 1px solid var(--border-color);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+
+        /* Flash Messages */
+        .flash-container {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            z-index: 9999;
+        }
+        .flash-msg {
+            padding: 12px 20px;
+            border-radius: 8px;
+            margin-bottom: 10px;
+            animation: slideIn 0.3s ease-out;
+            background: var(--panel-bg);
+            backdrop-filter: var(--glass-blur);
+            border-left: 4px solid var(--primary);
+        }
+        .flash-msg.error { border-color: var(--danger); }
+        .flash-msg.success { border-color: var(--success); }
+
+        @keyframes slideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+            90% { transform: translateX(0); opacity: 1; }
+            100% { transform: translateX(100%); opacity: 0; display: none; }
+        }
+
+        .flash-msg {
+            animation: slideIn 4s forwards;
+        }
+
+        /* Shared Form Elements */
+        input, select, button {
+            outline: none;
+            border: none;
+            font-family: inherit;
+        }
+        .input-group {
+            margin-bottom: 20px;
+            position: relative;
+        }
+        .input-group input, .input-group select {
+            width: 100%;
+            padding: 14px 16px;
+            background: rgba(0,0,0,0.2);
+            border: 1px solid var(--border-color);
+            border-radius: 8px;
+            color: var(--text-main);
+            transition: all 0.3s;
+        }
+        .input-group input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 2px rgba(99, 102, 241, 0.2);
+        }
+        .input-group select option {
+            background: var(--bg-color);
+            color: var(--text-main);
+        }
+        .btn-primary {
+            width: 100%;
+            padding: 14px;
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: 8px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: transform 0.2s, box-shadow 0.2s;
+        }
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: 0 10px 20px -10px var(--primary);
+        }
+        
+        /* Scrollbars */
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
+        }
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-color);
+            border-radius: 10px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: rgba(255, 255, 255, 0.2);
+        }
+    </style>
+    {% block extra_head %}{% endblock %}
+</head>
+<body>
+    <div class="flash-container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash-msg {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+    </div>
+    {% block content %}{% endblock %}
+</body>
+</html>

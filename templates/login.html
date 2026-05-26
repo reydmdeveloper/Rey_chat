@@ -1,0 +1,60 @@
+{% extends "base.html" %}
+
+{% block title %}Login - REYDM Chat{% endblock %}
+
+{% block extra_head %}
+<style>
+    .login-wrapper {
+        width: 100%;
+        max-width: 400px;
+        padding: 40px;
+        animation: fadeIn 0.5s ease-out;
+    }
+    .logo {
+        text-align: center;
+        margin-bottom: 30px;
+    }
+    .logo i {
+        font-size: 48px;
+        background: linear-gradient(135deg, var(--primary), var(--accent));
+        -webkit-background-clip: text;
+        -webkit-text-fill-color: transparent;
+        margin-bottom: 10px;
+    }
+    .logo h1 {
+        font-size: 24px;
+        font-weight: 600;
+        letter-spacing: 1px;
+    }
+    @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(20px); }
+        to { opacity: 1; transform: translateY(0); }
+    }
+</style>
+{% endblock %}
+
+{% block content %}
+<div class="glass-panel login-wrapper">
+    <div class="logo">
+        <img src="/Images/REYDM_LOGO.png" alt="REYDM Logo" style="width: 80px; height: auto; margin-bottom: 10px; filter: drop-shadow(0 2px 8px rgba(0,0,0,0.2));">
+        <h1>REYDM Chat</h1>
+    </div>
+    <form method="POST" action="/login" id="loginForm">
+        <div class="input-group">
+            <input type="email" name="email" id="loginEmail" placeholder="Email Address" required>
+        </div>
+        <div class="input-group" style="margin-bottom: 20px;">
+            <input type="password" name="password" id="loginPassword" placeholder="Password" required>
+        </div>
+        <button type="submit" class="btn-primary">Sign In</button>
+        <div style="text-align: center; margin-top: 20px;">
+            <span style="color: var(--text-muted); font-size: 14px;">Don't have an account? </span>
+            <a href="/register" style="color: var(--primary); font-size: 14px; font-weight: 600; text-decoration: none; transition: color 0.2s;" onmouseover="this.style.color='var(--accent)'" onmouseout="this.style.color='var(--primary)'">Sign Up</a>
+        </div>
+    </form>
+</div>
+
+<script>
+    // Sessions are now handled automatically and permanently by the server.
+</script>
+{% endblock %}

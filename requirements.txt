@@ -1,0 +1,6 @@
+Flask==3.0.0
+Flask-SocketIO==5.3.6
+mysql-connector-python==8.2.0
+werkzeug==3.0.1
+PyQt6==6.6.1
+PyQt6-WebEngine==6.6.0
