@@ -4,3 +4,6 @@ mysql-connector-python==8.2.0
 werkzeug==3.0.1
 PyQt6==6.6.1
 PyQt6-WebEngine==6.6.0
+pytz==2024.1
+eventlet==0.40.4
+simple-websocket==1.1.0
