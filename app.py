@@ -28,7 +28,7 @@ from functools import wraps
 
 from flask import (
     Flask, render_template, request, redirect, url_for,
-    session, flash, jsonify, send_from_directory
+    session, flash, jsonify, send_from_directory, send_file
 )
 from werkzeug.security import generate_password_hash, check_password_hash
 from werkzeug.utils import secure_filename
@@ -78,6 +78,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode='threading')
 online_users = {}        # user_id (int) -> set of socket sids
 sid_to_uid = {}          # sid -> user_id (int)
 user_active_room = {}    # sid -> room_id (str)
+user_custom_statuses = {} # user_id (int) -> 'online' | 'away' | 'offline'
 
 # ─── Database Configuration ──────────────────────────────────────────
 DB_CONFIG = {
@@ -210,6 +211,18 @@ def init_db():
                 updated_at DATETIME DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP
             )
         """)
+
+        # Add avatar_url column to users if it doesn't exist
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN avatar_url VARCHAR(255) DEFAULT NULL")
+        except Exception:
+            pass
+
+        # Add about column to users if it doesn't exist
+        try:
+            cur.execute("ALTER TABLE users ADD COLUMN about VARCHAR(255) DEFAULT 'Available'")
+        except Exception:
+            pass
 
         # ─── OTP ─────────────────────────────────────────────────────
         cur.execute("""
@@ -488,6 +501,19 @@ def init_db():
                 cleared_at DATETIME DEFAULT CURRENT_TIMESTAMP,
                 UNIQUE KEY unique_user_convo (user_id, conversation_id),
                 FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+            )
+        """)
+
+        # ─── DELETED MESSAGES FOR USER ──────────────────────────────────
+        cur.execute("""
+            CREATE TABLE IF NOT EXISTS deleted_messages_for_user (
+                id INT AUTO_INCREMENT PRIMARY KEY,
+                user_id INT NOT NULL,
+                message_id INT NOT NULL,
+                deleted_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+                UNIQUE KEY unique_user_msg (user_id, message_id),
+                FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+                FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
             )
         """)
 
@@ -2154,6 +2180,77 @@ def toggle_tool(user_id, tool_key):
     return redirect(url_for("admin_users"))
 
 
+# ─── ADMIN: USER DELETION API ───────────────────────────────────────
+
+@app.route("/api/admin/users/<int:user_id>/check-messages", methods=["GET"])
+@admin_required
+def admin_check_user_messages(user_id):
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT id, full_name, role FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+            
+        cur.execute("SELECT COUNT(*) as cnt FROM messages WHERE sender_id = %s", (user_id,))
+        count = cur.fetchone()["cnt"]
+        return jsonify({"success": True, "message_count": count, "full_name": user["full_name"]})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/admin/users/<int:user_id>/delete", methods=["POST"])
+@admin_required
+def admin_delete_user(user_id):
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT id, full_name, role FROM users WHERE id = %s", (user_id,))
+        user = cur.fetchone()
+        if not user:
+            return jsonify({"success": False, "message": "User not found"}), 404
+            
+        if user["id"] == session.get("user_id"):
+            return jsonify({"success": False, "message": "You cannot delete yourself!"}), 400
+        if user["role"] == "admin":
+            return jsonify({"success": False, "message": "Administrators cannot be deleted!"}), 400
+            
+        # 1. Delete user-specific file storage folder on disk
+        import shutil
+        username = secure_filename(user["full_name"])
+        user_dir = os.path.join(UPLOAD_FOLDER, username)
+        if os.path.exists(user_dir):
+            try:
+                shutil.rmtree(user_dir)
+            except Exception as e:
+                print(f"Failed to delete disk storage for user {username}: {e}")
+                
+        # 2. Clean up associated database entries
+        cur.execute("DELETE FROM message_reactions WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM message_reactions WHERE message_id IN (SELECT id FROM messages WHERE sender_id = %s)", (user_id,))
+        cur.execute("DELETE FROM message_read_receipts WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM message_read_receipts WHERE message_id IN (SELECT id FROM messages WHERE sender_id = %s)", (user_id,))
+        cur.execute("DELETE FROM chat_group_members WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM pinned_conversations WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM user_conversation_cleared WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM otp_tokens WHERE user_id = %s", (user_id,))
+        cur.execute("DELETE FROM reminders WHERE created_by = %s", (user_id,))
+        cur.execute("DELETE FROM messages WHERE sender_id = %s", (user_id,))
+        cur.execute("DELETE FROM users WHERE id = %s", (user_id,))
+        
+        conn.commit()
+        return jsonify({"success": True, "message": "User and all associated data deleted successfully!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # USER PROFILE
 # ═══════════════════════════════════════════════════════════════════════
@@ -2850,7 +2947,7 @@ def chat():
 def get_users():
     conn = get_db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, full_name, email, role FROM users WHERE id != %s AND is_active=1 AND is_approved=1", (session["user_id"],))
+    cur.execute("SELECT id, full_name, email, role, avatar_url, about FROM users WHERE id != %s AND is_active=1 AND is_approved=1", (session["user_id"],))
     users = cur.fetchall()
     cur.close()
     conn.close()
@@ -2906,10 +3003,11 @@ def get_messages(conversation_id):
             JOIN users u ON m.sender_id = u.id 
             LEFT JOIN messages r ON m.reply_to_id = r.id
             LEFT JOIN users ru ON r.sender_id = ru.id
-            WHERE m.conversation_id = %s AND m.id < %s AND m.id > %s
+            LEFT JOIN deleted_messages_for_user dm ON m.id = dm.message_id AND dm.user_id = %s
+            WHERE m.conversation_id = %s AND m.id < %s AND m.id > %s AND dm.id IS NULL
             ORDER BY m.id DESC
             LIMIT %s
-        """, (conversation_id, before_id, cleared_id, limit))
+        """, (session["user_id"], conversation_id, before_id, cleared_id, limit))
     else:
         cur.execute("""
             SELECT m.*, u.full_name as sender_name,
@@ -2920,10 +3018,11 @@ def get_messages(conversation_id):
             JOIN users u ON m.sender_id = u.id 
             LEFT JOIN messages r ON m.reply_to_id = r.id
             LEFT JOIN users ru ON r.sender_id = ru.id
-            WHERE m.conversation_id = %s AND m.id > %s
+            LEFT JOIN deleted_messages_for_user dm ON m.id = dm.message_id AND dm.user_id = %s
+            WHERE m.conversation_id = %s AND m.id > %s AND dm.id IS NULL
             ORDER BY m.id DESC
             LIMIT %s
-        """, (conversation_id, cleared_id, limit))
+        """, (session["user_id"], conversation_id, cleared_id, limit))
         
     messages = cur.fetchall()
     messages.reverse() # Reverse to chronological order (ascending)
@@ -2950,9 +3049,12 @@ def get_messages(conversation_id):
             m["created_at"] = m["created_at"].strftime("%Y-%m-%d %H:%M:%S")
         if m.get("file_url"):
             db_file_url = m["file_url"]
-            if db_file_url.startswith("/api/chat/download/"):
-                db_file_url = db_file_url[len("/api/chat/download/"):]
-            m["file_url"] = f"/api/chat/download/{db_file_url}"
+            if db_file_url == 'deleted':
+                m["file_url"] = 'deleted'
+            else:
+                if db_file_url.startswith("/api/chat/download/"):
+                    db_file_url = db_file_url[len("/api/chat/download/"):]
+                m["file_url"] = f"/api/chat/download/{db_file_url}"
         m["reactions"] = reactions_map.get(m["id"], [])
     cur.close()
     conn.close()
@@ -3210,20 +3312,26 @@ def find_file_fallback(base_path, filename):
 
 @app.route("/Images/<path:filename>")
 def serve_images(filename):
-    return send_from_directory("Images", filename)
+    img_path = os.path.abspath(os.path.join("Images", filename))
+    images_dir = os.path.abspath("Images")
+    if img_path.startswith(images_dir) and os.path.exists(img_path):
+        return send_file(img_path)
+    return "Not Found", 404
 
 @app.route("/api/chat/download/<path:filename>")
 @login_required
 def download_file(filename):
     resolved_path = find_file_fallback(UPLOAD_FOLDER, filename)
-    if resolved_path and os.path.exists(resolved_path):
-        directory = os.path.dirname(resolved_path)
-        base = os.path.basename(resolved_path)
-        as_attachment = request.args.get('download', '0') == '1'
-        return send_from_directory(directory, base, as_attachment=as_attachment)
-        
     as_attachment = request.args.get('download', '0') == '1'
-    return send_from_directory(UPLOAD_FOLDER, filename, as_attachment=as_attachment)
+    if resolved_path and os.path.exists(resolved_path):
+        base = os.path.basename(resolved_path)
+        return send_file(resolved_path, as_attachment=as_attachment, download_name=base)
+        
+    fallback_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
+    if os.path.exists(fallback_path):
+        base = os.path.basename(filename)
+        return send_file(fallback_path, as_attachment=as_attachment, download_name=base)
+    return "File Not Found", 404
 
 @app.route("/api/chat/open/<path:filename>")
 @login_required
@@ -3425,6 +3533,14 @@ def delete_group(group_id):
 def get_online_users_api():
     return jsonify(list(online_users.keys()))
 
+@app.route("/api/chat/users/statuses", methods=["GET"])
+@login_required
+def get_user_statuses_api():
+    result = {}
+    for uid in online_users.keys():
+        result[uid] = user_custom_statuses.get(uid, 'online')
+    return jsonify(result)
+
 
 # ─── MESSAGE INFO ENDPOINT ───────────────────────────────────────────
 
@@ -3534,6 +3650,117 @@ def get_message_info(message_id):
     conn.close()
     return jsonify(result)
 
+# ─── USER PROFILE API ───────────────────────────────────────────────
+
+@app.route("/api/chat/profile", methods=["GET"])
+@login_required
+def get_profile():
+    uid = session["user_id"]
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, full_name, email, role, avatar_url, about FROM users WHERE id = %s", (uid,))
+    user = cur.fetchone()
+    cur.close()
+    conn.close()
+    if not user:
+        return jsonify({"success": False, "message": "User not found"}), 404
+        
+    # Calculate UPLOAD_FOLDER storage size in MB
+    storage_size_mb = 0.0
+    try:
+        username = secure_filename(user.get('full_name', 'User'))
+        target_dir = UPLOAD_FOLDER if user.get("role") == "admin" else os.path.join(UPLOAD_FOLDER, username)
+        if os.path.exists(target_dir):
+            total_bytes = 0
+            for root, dirs, files in os.walk(target_dir):
+                for f in files:
+                    fp = os.path.join(root, f)
+                    if os.path.exists(fp):
+                        total_bytes += os.path.getsize(fp)
+            storage_size_mb = round(total_bytes / (1024 * 1024), 2)
+    except Exception:
+        pass
+
+    return jsonify({
+        "success": True,
+        "full_name": user["full_name"],
+        "email": user["email"],
+        "role": user["role"],
+        "avatar_url": user["avatar_url"],
+        "about": user["about"],
+        "storage_size_mb": storage_size_mb
+    })
+
+@app.route("/api/chat/profile", methods=["POST"])
+@login_required
+def update_profile():
+    uid = session["user_id"]
+    data = request.json
+    full_name = data.get("full_name", "").strip()
+    avatar_url = data.get("avatar_url", "").strip()
+    about = data.get("about", "").strip()
+    
+    if not full_name:
+        return jsonify({"success": False, "message": "Full name cannot be empty"}), 400
+        
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+            UPDATE users 
+            SET full_name = %s, avatar_url = %s, about = %s 
+            WHERE id = %s
+        """, (full_name, avatar_url if avatar_url else None, about if about else "Available", uid))
+        conn.commit()
+        
+        # Update session full_name so it renders instantly
+        session["full_name"] = full_name
+        
+        # Broadcast the profile update using socketio (so other users' sidebars update real-time!)
+        socketio.emit('profile_updated', {
+            'user_id': uid,
+            'full_name': full_name,
+            'avatar_url': avatar_url,
+            'about': about
+        })
+        
+        return jsonify({"success": True, "message": "Profile updated successfully"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
+@app.route("/api/chat/clear-storage", methods=["POST"])
+@login_required
+def clear_storage():
+    try:
+        import shutil
+        if session.get("role") == "admin":
+            if os.path.exists(UPLOAD_FOLDER):
+                for filename in os.listdir(UPLOAD_FOLDER):
+                    file_path = os.path.join(UPLOAD_FOLDER, filename)
+                    try:
+                        if os.path.isfile(file_path) or os.path.islink(file_path):
+                            os.unlink(file_path)
+                        elif os.path.isdir(file_path):
+                            shutil.rmtree(file_path)
+                    except Exception as e:
+                        print(f"Failed to delete {file_path}: {e}")
+                # Ensure the directory itself still exists
+                os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+        else:
+            username = secure_filename(session.get('full_name', 'User'))
+            user_dir = os.path.join(UPLOAD_FOLDER, username)
+            if os.path.exists(user_dir):
+                shutil.rmtree(user_dir)
+                os.makedirs(user_dir, exist_ok=True)
+        return jsonify({"success": True, "message": "Storage cleared successfully!"})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 500
+
+
 # ─── CONVERSATIONS API ──────────────────────────────────────────────
 
 @app.route("/api/chat/conversations")
@@ -3602,7 +3829,7 @@ def get_conversations():
     partners = {}
     if partner_ids:
         format_strings = ','.join(['%s'] * len(partner_ids))
-        cur.execute(f"SELECT id, full_name, email, role FROM users WHERE id IN ({format_strings})", tuple(partner_ids))
+        cur.execute(f"SELECT id, full_name, email, role, avatar_url, about FROM users WHERE id IN ({format_strings})", tuple(partner_ids))
         for row in cur.fetchall():
             partners[row["id"]] = row
 
@@ -3617,11 +3844,10 @@ def get_conversations():
                 unread = unread_counts.get(c["conversation_id"], 0)
                 cleared_id = cleared_map.get(c["conversation_id"], 0)
                 if c["msg_id"] <= cleared_id:
-                    last_text = ""
-                    last_time_str = ""
-                else:
-                    last_text = c["message_text"] if c["message_type"] == "text" else f"📎 {c['message_type']}"
-                    last_time_str = c["last_time"].strftime("%Y-%m-%d %H:%M:%S") if c["last_time"] else ""
+                    continue  # Hide fully cleared/deleted DM chats
+                
+                last_text = c["message_text"] if c["message_type"] == "text" else f"📎 {c['message_type']}"
+                last_time_str = c["last_time"].strftime("%Y-%m-%d %H:%M:%S") if c["last_time"] else ""
                 result.append({
                     "type": "dm",
                     "conversation_id": c["conversation_id"],
@@ -3629,6 +3855,8 @@ def get_conversations():
                     "partner_name": partner["full_name"],
                     "partner_email": partner["email"],
                     "partner_role": partner["role"],
+                    "partner_avatar": partner.get("avatar_url"),
+                    "partner_about": partner.get("about", "Available"),
                     "last_message": last_text,
                     "last_time": last_time_str,
                     "unread": unread
@@ -3690,9 +3918,9 @@ def search_users():
     conn = get_db()
     cur = conn.cursor(dictionary=True)
     if q:
-        cur.execute("SELECT id, full_name, email, role FROM users WHERE id != %s AND is_active=1 AND is_approved=1 AND full_name LIKE %s", (session["user_id"], f"%{q}%"))
+        cur.execute("SELECT id, full_name, email, role, avatar_url, about FROM users WHERE id != %s AND is_active=1 AND is_approved=1 AND full_name LIKE %s", (session["user_id"], f"%{q}%"))
     else:
-        cur.execute("SELECT id, full_name, email, role FROM users WHERE id != %s AND is_active=1 AND is_approved=1", (session["user_id"],))
+        cur.execute("SELECT id, full_name, email, role, avatar_url, about FROM users WHERE id != %s AND is_active=1 AND is_approved=1", (session["user_id"],))
     users = cur.fetchall()
     cur.close()
     conn.close()
@@ -3809,6 +4037,7 @@ def on_connect():
         is_new = True
     online_users[user_id].add(sid)
     if is_new:
+        user_custom_statuses[user_id] = 'online'
         emit('user_status_changed', {'user_id': user_id, 'status': 'online'}, broadcast=True)
 
     # Personal room: lets us push new-chat notifications to a user even when
@@ -3857,7 +4086,22 @@ def on_disconnect():
         online_users[user_id].discard(sid)
         if not online_users[user_id]:
             online_users.pop(user_id)
+            user_custom_statuses.pop(user_id, None)
             emit('user_status_changed', {'user_id': user_id, 'status': 'offline'}, broadcast=True)
+
+@socketio.on('change_status')
+def handle_change_status(data):
+    user_id = session.get('user_id')
+    status = data.get('status')
+    if not user_id or status not in ['online', 'away', 'offline']:
+        return
+    
+    if status == 'offline':
+        user_custom_statuses.pop(user_id, None)
+        emit('user_status_changed', {'user_id': user_id, 'status': 'offline'}, broadcast=True)
+    else:
+        user_custom_statuses[user_id] = status
+        emit('user_status_changed', {'user_id': user_id, 'status': status}, broadcast=True)
 
 @socketio.on('join')
 def on_join(data):
@@ -4102,19 +4346,61 @@ def handle_edit_message(data):
 def handle_delete_message(data):
     msg_id = data.get('id')
     room = data.get('conversation_id')
+    delete_type = data.get('delete_type', 'everyone')
     if not msg_id or not room:
         return
         
+    uid = session.get('user_id')
+    if not uid:
+        return
+        
     conn = get_db()
-    cur = conn.cursor()
-    cur.execute("SELECT sender_id FROM messages WHERE id = %s", (msg_id,))
-    msg = cur.fetchone()
+    cur = conn.cursor(dictionary=True)
     
-    if msg and msg[0] == session.get('user_id'):
-        cur.execute("DELETE FROM messages WHERE id = %s", (msg_id,))
-        conn.commit()
-        emit('message_deleted', {'id': msg_id}, room=room)
-    
+    is_authorized = False
+    if room.startswith("chat_"):
+        parts = room.split("_")
+        if len(parts) == 3:
+            uid1, uid2 = int(parts[1]), int(parts[2])
+            if uid == uid1 or uid == uid2:
+                is_authorized = True
+    elif room.startswith("group_"):
+        try:
+            group_id = int(room.split("_")[1])
+            cur.execute("SELECT 1 FROM chat_group_members WHERE group_id = %s AND user_id = %s", (group_id, uid))
+            if cur.fetchone():
+                is_authorized = True
+        except Exception:
+            pass
+            
+    if is_authorized:
+        cur.execute("SELECT id, sender_id, file_url FROM messages WHERE id = %s AND conversation_id = %s", (msg_id, room))
+        msg = cur.fetchone()
+        if msg:
+            sender_id = msg['sender_id']
+            is_deleted_placeholder = (msg['file_url'] == 'deleted')
+            if delete_type == 'me' or is_deleted_placeholder:
+                cur.execute("INSERT IGNORE INTO deleted_messages_for_user (user_id, message_id) VALUES (%s, %s)", (uid, msg_id))
+                conn.commit()
+                emit('message_physically_deleted', {'id': msg_id})
+            else:
+                if sender_id == uid:
+                    cur.execute("DELETE FROM message_reactions WHERE message_id = %s", (msg_id,))
+                    cur.execute("DELETE FROM message_read_receipts WHERE message_id = %s", (msg_id,))
+                    cur.execute("""
+                        UPDATE messages 
+                        SET message_text = 'This message was deleted',
+                            message_type = 'text',
+                            file_url = 'deleted',
+                            file_name = NULL,
+                            reply_to_id = NULL,
+                            is_pinned = 0,
+                            is_edited = 0
+                        WHERE id = %s
+                    """, (msg_id,))
+                    conn.commit()
+                    emit('message_deleted', {'id': msg_id, 'sender_id': sender_id}, room=room)
+            
     cur.close()
     conn.close()
 

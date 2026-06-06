@@ -79,6 +79,86 @@
     }
     .role-admin { background: rgba(99, 102, 241, 0.2); color: #818cf8; }
     .role-user { background: rgba(16, 185, 129, 0.2); color: #34d399; }
+
+    /* ─── Profile Settings & Avatars Styles ─── */
+    .profile-avatar-container {
+        position: relative;
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        cursor: pointer;
+        overflow: hidden;
+        margin: 0;
+    }
+    .profile-avatar-container:hover .profile-avatar-overlay {
+        opacity: 1 !important;
+    }
+    .profile-avatar-container:hover .avatar-large {
+        filter: brightness(0.7);
+    }
+    .avatar-large {
+        width: 80px;
+        height: 80px;
+        border-radius: 50%;
+        font-size: 32px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: var(--primary);
+        color: white;
+        background-size: cover;
+        background-position: center;
+        border: 2px solid var(--primary);
+        transition: filter 0.2s;
+    }
+    .profile-avatar-overlay {
+        position: absolute;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.6);
+        border-radius: 50%;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        opacity: 0;
+        transition: opacity 0.2s;
+        border: 2px solid var(--primary);
+    }
+    .avatar-grid-item {
+        cursor: pointer;
+        position: relative;
+        border-radius: 50%;
+        border: 3px solid transparent;
+        overflow: hidden;
+        aspect-ratio: 1;
+        transition: transform 0.2s, border-color 0.2s;
+    }
+    .avatar-grid-item:hover {
+        transform: scale(1.1);
+        border-color: var(--primary) !important;
+    }
+    .avatar-grid-item.selected {
+        border-color: var(--primary) !important;
+        background: rgba(99, 102, 241, 0.2);
+    }
+    .modal {
+        display: none;
+        position: fixed;
+        top: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        background: rgba(0,0,0,0.6);
+        z-index: 2000;
+        align-items: center;
+        justify-content: center;
+    }
+    .modal-content {
+        background: #1a1a24;
+        border: 1px solid var(--border-color);
+        border-radius: 12px;
+        padding: 20px;
+    }
 </style>
 {% endblock %}
 
@@ -90,6 +170,40 @@
     </div>
 
     <div class="grid">
+        <!-- My Profile Settings Card -->
+        <div class="card">
+            <h3><i class="fa-solid fa-user-gear"></i> My Profile Settings</h3>
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Update your display name, about status, and select from the 20 premium online avatars!
+            </p>
+            <div style="display: flex; align-items: center; gap: 20px; margin-bottom: 20px; background: rgba(255,255,255,0.03); padding: 15px; border-radius: 8px; border: 1px solid var(--border-color);">
+                <div class="profile-avatar-container" onclick="openAdminAvatarModal()">
+                    <div id="adminProfileAvatar" class="avatar-large">U</div>
+                    <div class="profile-avatar-overlay">
+                        <i class="fa-solid fa-camera" style="font-size: 18px; color: white;"></i>
+                    </div>
+                </div>
+                <div style="flex: 1;">
+                    <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px;">Role</div>
+                    <strong style="color: var(--accent); text-transform: uppercase; font-size: 14px;">{{ role }}</strong>
+                    <div style="font-size: 10px; color: var(--text-muted); font-weight: bold; text-transform: uppercase; letter-spacing: 0.5px; margin-top: 6px;">Email</div>
+                    <span id="adminEmail" style="color: var(--text-main); font-size: 13px; font-family: monospace;">Loading...</span>
+                </div>
+            </div>
+            
+            <div style="display: flex; flex-direction: column; gap: 15px;">
+                <div class="input-group" style="display: flex; flex-direction: column; gap: 5px;">
+                    <label style="font-size: 12px; color: var(--accent); font-weight: 600;">Display Name</label>
+                    <input type="text" id="adminNameInput" placeholder="Display Name" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box;">
+                </div>
+                <div class="input-group" style="display: flex; flex-direction: column; gap: 5px;">
+                    <label style="font-size: 12px; color: var(--accent); font-weight: 600;">About Status</label>
+                    <input type="text" id="adminAboutInput" placeholder="About Status" style="width: 100%; padding: 10px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box;">
+                </div>
+                <button onclick="saveAdminProfile()" class="btn-primary" style="background: linear-gradient(135deg, var(--primary), #4f46e5); border: none; cursor: pointer; outline: none; width: 100%;">Save Profile Changes</button>
+            </div>
+        </div>
+
         <!-- Local Storage Config -->
         <div class="card">
             <h3><i class="fa-solid fa-hard-drive"></i> Local Storage Config</h3>
@@ -182,7 +296,32 @@
             </form>
         </div>
 
-        <!-- User List -->
+        <!-- Avatar Selection Modal for Admin -->
+<div id="adminAvatarPickerModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center;">
+    <div class="modal-content" style="width: 500px; max-width: 95%; background: #1a1a24 !important; border: 1px solid var(--border-color); border-radius: 12px; padding: 20px;">
+        <h3 style="margin-top: 0; color: white; display: flex; justify-content: space-between; align-items: center;">
+            <span>Select Profile Avatar</span>
+            <i class="fa-solid fa-times" onclick="closeAdminAvatarModal()" style="cursor: pointer; color: var(--text-muted); font-size: 18px;"></i>
+        </h3>
+        <div style="margin-bottom: 15px; color: var(--text-muted); font-size: 13px;">Choose from one of our 20 default premium online avatars:</div>
+        <!-- Suggested Letter Avatar Option for Admin -->
+        <div style="margin-bottom:15px; border-bottom:1px solid var(--border-color); padding-bottom:15px; display:flex; align-items:center; gap:12px;">
+            <div id="suggestedAdminInitialsBtn" style="cursor:pointer; width:50px; height:50px; border-radius:50%; background:var(--primary); color:white; display:flex; align-items:center; justify-content:center; font-weight:bold; font-size:20px; border:3px solid transparent; transition:border-color 0.2s;" onclick="selectAdminAvatar('')">
+                U
+            </div>
+            <div>
+                <strong style="color:white; font-size:14px; display:block;">Use Letter Initials</strong>
+                <span style="font-size:11px; color:var(--text-muted);">Reset your profile avatar to display your name's initials.</span>
+            </div>
+        </div>
+        
+        <div class="avatar-grid" style="display: grid; grid-template-columns: repeat(5, 1fr); gap: 15px; max-height: 350px; overflow-y: auto; padding: 10px; background: rgba(0,0,0,0.2); border-radius: 8px;">
+            <!-- Populated dynamically with JS -->
+        </div>
+    </div>
+</div>
+
+<!-- User List -->
         <div class="card" style="grid-column: span 2;">
             <h3><i class="fa-solid fa-users"></i> Registered Users</h3>
             <div style="overflow-x: auto;">
@@ -193,6 +332,7 @@
                             <th>Full Name</th>
                             <th>Email</th>
                             <th>Role</th>
+                            <th>Actions</th>
                         </tr>
                     </thead>
                     <tbody>
@@ -203,6 +343,15 @@
                             <td>{{ user.email }}</td>
                             <td>
                                 <span class="role-badge role-{{ user.role }}">{{ user.role|upper }}</span>
+                            </td>
+                            <td>
+                                {% if user.id != session.user_id and user.role != 'admin' %}
+                                <button onclick="deleteUserCheck({{ user.id }}, '{{ user.full_name|replace('\'', '\\\'') }}')" class="btn-outline" style="padding: 4px 10px; font-size: 12px; color: #f87171; border-color: rgba(239, 68, 68, 0.4); background: rgba(239, 68, 68, 0.05); cursor: pointer; display: inline-flex; align-items: center; gap: 4px; outline: none; transition: all 0.2s;">
+                                    <i class="fa-solid fa-trash-can"></i> Delete
+                                </button>
+                                {% else %}
+                                <span style="color: var(--text-muted); font-size: 12px; font-style: italic;">Protected</span>
+                                {% endif %}
                             </td>
                         </tr>
                         {% endfor %}
@@ -240,5 +389,186 @@
             }
         }
     }
+
+    // My Profile Settings Logic inside Admin Panel
+    let myAdminProfile = null;
+    const onlineAvatars = [
+    "/Images/avatars/avatar_1.svg",
+    "/Images/avatars/avatar_2.svg",
+    "/Images/avatars/avatar_3.svg",
+    "/Images/avatars/avatar_4.svg",
+    "/Images/avatars/avatar_5.svg",
+    "/Images/avatars/avatar_6.svg",
+    "/Images/avatars/avatar_7.svg",
+    "/Images/avatars/avatar_8.svg",
+    "/Images/avatars/avatar_9.svg",
+    "/Images/avatars/avatar_10.svg",
+    "/Images/avatars/avatar_11.svg",
+    "/Images/avatars/avatar_12.svg",
+    "/Images/avatars/avatar_13.svg",
+    "/Images/avatars/avatar_14.svg",
+    "/Images/avatars/avatar_15.svg",
+    "/Images/avatars/avatar_16.svg",
+    "/Images/avatars/avatar_17.svg",
+    "/Images/avatars/avatar_18.svg",
+    "/Images/avatars/avatar_19.svg",
+    "/Images/avatars/avatar_20.svg"
+];
+
+    async function loadAdminProfile() {
+        try {
+            const res = await fetch('/api/chat/profile');
+            const data = await res.json();
+            if (data.success) {
+                myAdminProfile = data;
+                updateAdminProfileUI();
+            }
+        } catch (err) {
+            console.error("Error loading admin profile in admin panel:", err);
+        }
+    }
+
+    function updateAdminProfileUI() {
+        if (!myAdminProfile) return;
+        
+        const avatarEl = document.getElementById('adminProfileAvatar');
+        if (avatarEl) {
+            if (myAdminProfile.avatar_url) {
+                avatarEl.innerHTML = `<img src="${myAdminProfile.avatar_url}" style="width: 100%; height: 100%; border-radius: 50%; object-fit: cover;">`;
+            } else {
+                avatarEl.textContent = myAdminProfile.full_name.charAt(0).toUpperCase();
+                avatarEl.style.background = 'var(--primary)';
+            }
+        }
+        
+        document.getElementById('adminNameInput').value = myAdminProfile.full_name;
+        document.getElementById('adminAboutInput').value = myAdminProfile.about || 'Available';
+        document.getElementById('adminEmail').textContent = myAdminProfile.email;
+    }
+
+    function openAdminAvatarModal() {
+        const modal = document.getElementById('adminAvatarPickerModal');
+        if (modal) {
+            modal.style.display = 'flex';
+            
+            // Populate suggested initials letter dynamically
+            const suggestedBtn = document.getElementById('suggestedAdminInitialsBtn');
+            if (suggestedBtn && myAdminProfile) {
+                const initials = myAdminProfile.full_name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
+                suggestedBtn.textContent = initials || 'U';
+                suggestedBtn.style.borderColor = myAdminProfile.avatar_url ? 'transparent' : 'var(--primary)';
+            }
+            
+            populateAdminAvatarGrid();
+        }
+    }
+
+    function closeAdminAvatarModal() {
+        const modal = document.getElementById('adminAvatarPickerModal');
+        if (modal) {
+            modal.style.display = 'none';
+        }
+    }
+
+    function populateAdminAvatarGrid() {
+        const grid = document.querySelector('#adminAvatarPickerModal .avatar-grid');
+        if (!grid) return;
+        grid.innerHTML = '';
+        
+        onlineAvatars.forEach(url => {
+            const item = document.createElement('div');
+            item.className = 'avatar-grid-item' + (myAdminProfile && myAdminProfile.avatar_url === url ? ' selected' : '');
+            item.style.cssText = 'cursor: pointer; position: relative; border-radius: 50%; border: 3px solid transparent; overflow: hidden; aspect-ratio: 1; transition: transform 0.2s, border-color 0.2s;';
+            item.innerHTML = `<img src="${url}" style="width: 100%; height: 100%; object-fit: cover;">`;
+            item.onclick = () => selectAdminAvatar(url);
+            grid.appendChild(item);
+        });
+    }
+
+    async function selectAdminAvatar(url) {
+        if (!myAdminProfile) return;
+        myAdminProfile.avatar_url = url;
+        updateAdminProfileUI();
+        closeAdminAvatarModal();
+    }
+
+    async function saveAdminProfile() {
+        if (!myAdminProfile) return;
+        const nameVal = document.getElementById('adminNameInput').value.trim();
+        const aboutVal = document.getElementById('adminAboutInput').value.trim();
+        
+        if (!nameVal) {
+            alert("Display Name cannot be empty!");
+            return;
+        }
+        
+        const payload = {
+            full_name: nameVal,
+            avatar_url: myAdminProfile.avatar_url,
+            about: aboutVal || 'Available'
+        };
+        
+        try {
+            const res = await fetch('/api/chat/profile', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            });
+            const data = await res.json();
+            if (data.success) {
+                myAdminProfile.full_name = nameVal;
+                myAdminProfile.about = aboutVal;
+                alert("Profile changes saved successfully!");
+            } else {
+                alert(data.message || "Failed to update profile");
+            }
+        } catch (err) {
+            console.error("Error saving admin profile:", err);
+            alert("Error saving profile settings");
+        }
+    }
+
+    async function deleteUserCheck(userId, fullName) {
+        try {
+            // Check message volume first
+            const res = await fetch(`/api/admin/users/${userId}/check-messages`);
+            const data = await res.json();
+            
+            if (data.success) {
+                const msgCount = data.message_count;
+                let confirmMsg = `Are you sure you want to permanently delete the user "${fullName}"?\n\n`;
+                if (msgCount > 0) {
+                    confirmMsg += `⚠️ WARNING: This user has sent ${msgCount} chat messages.\n`;
+                    confirmMsg += `Deleting this user will also permanently delete all of their messages and attachments from the system.\n\n`;
+                } else {
+                    confirmMsg += `This user has not sent any chat messages.\n\n`;
+                }
+                confirmMsg += `This action cannot be undone. Do you want to proceed?`;
+                
+                if (confirm(confirmMsg)) {
+                    // Call the delete API
+                    const deleteRes = await fetch(`/api/admin/users/${userId}/delete`, {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' }
+                    });
+                    const deleteData = await deleteRes.json();
+                    if (deleteData.success) {
+                        alert(`User "${fullName}" and all associated data deleted successfully!`);
+                        window.location.reload();
+                    } else {
+                        alert(deleteData.message || "Failed to delete user");
+                    }
+                }
+            } else {
+                alert(data.message || "Error checking user messages");
+            }
+        } catch (err) {
+            console.error("Error in deleteUserCheck:", err);
+            alert("An error occurred while attempting to delete the user.");
+        }
+    }
+
+    // Call on load
+    loadAdminProfile();
 </script>
 {% endblock %}

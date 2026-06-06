@@ -9,8 +9,12 @@ try:
 except Exception:
     pass
 
-from PyQt6.QtCore import QUrl, Qt
-from PyQt6.QtWidgets import QApplication, QMainWindow, QVBoxLayout, QWidget
+from PyQt6.QtCore import QUrl, Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QDialog,
+    QLabel, QLineEdit, QPushButton, QGraphicsDropShadowEffect, QMessageBox, QInputDialog
+)
+from PyQt6.QtGui import QIcon, QFont, QColor
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
 
@@ -61,26 +65,321 @@ def load_config():
         "run_local_server": config.get("run_local_server", "false")
     }
 
+class ReydmOSNotification(QDialog):
+    def __init__(self, parent_window, sender_name, message_text, conversation_id):
+        super().__init__(None) # Pass None as parent to keep the notification window independent when main window is minimized
+        self.parent_window = parent_window
+        self.sender_name = sender_name
+        self.message_text = message_text
+        self.conversation_id = conversation_id
+        
+        # Set flags: frameless, stay on top, no taskbar entry
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | 
+            Qt.WindowType.WindowStaysOnTopHint | 
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        
+        # Outer layout
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Container widget for styling
+        container = QWidget()
+        container.setObjectName("container")
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(12, 10, 12, 12)
+        container_layout.setSpacing(6)
+        
+        # Apply drop shadow
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 3)
+        container.setGraphicsEffect(shadow)
+        
+        # Header layout (logo indicator, title, stretch, close button)
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(6)
+        
+        icon_label = QLabel()
+        icon_label.setFixedSize(12, 12)
+        icon_label.setStyleSheet("background-color: #00adb5; border-radius: 6px;")
+        
+        title_label = QLabel("REYDM Chat")
+        title_label.setObjectName("title_label")
+        
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("close_btn")
+        close_btn.setFixedSize(16, 16)
+        close_btn.clicked.connect(self.animate_exit)
+        
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(close_btn)
+        
+        # Sender Label
+        sender_lbl = QLabel(sender_name)
+        sender_lbl.setObjectName("sender_label")
+        
+        # Message text
+        msg_lbl = QLabel(message_text)
+        msg_lbl.setObjectName("msg_label")
+        msg_lbl.setWordWrap(True)
+        if len(message_text) > 85:
+            msg_lbl.setText(message_text[:82] + "...")
+            
+        # Reply area (Input + Send button)
+        reply_layout = QHBoxLayout()
+        reply_layout.setSpacing(6)
+        
+        self.reply_input = QLineEdit()
+        self.reply_input.setObjectName("reply_input")
+        self.reply_input.setPlaceholderText("Type a reply...")
+        self.reply_input.returnPressed.connect(self.handle_send_reply)
+        
+        self.send_btn = QPushButton("Send")
+        self.send_btn.clicked.connect(self.handle_send_reply)
+        
+        reply_layout.addWidget(self.reply_input)
+        reply_layout.addWidget(self.send_btn)
+        
+        # Assemble
+        container_layout.addLayout(header_layout)
+        container_layout.addWidget(sender_lbl)
+        container_layout.addWidget(msg_lbl)
+        container_layout.addLayout(reply_layout)
+        
+        outer_layout.addWidget(container)
+        
+        # Apply Styling (premium dark-slate/teal theme matching the app design system)
+        self.setStyleSheet("""
+            QWidget#container {
+                background-color: #1a1a24;
+                border: 1px solid rgba(0, 173, 181, 0.4);
+                border-radius: 12px;
+            }
+            QLabel#title_label {
+                color: #888899;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            QLabel#sender_label {
+                color: #00adb5;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QLabel#msg_label {
+                color: #d1d1d6;
+                font-size: 12px;
+            }
+            QLineEdit#reply_input {
+                background-color: #121218;
+                color: #ffffff;
+                border: 1px solid #2d2d3a;
+                border-radius: 6px;
+                padding: 5px 8px;
+                font-size: 11px;
+            }
+            QLineEdit#reply_input:focus {
+                border: 1px solid #00adb5;
+            }
+            QPushButton {
+                background-color: #00adb5;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #00c2cb;
+            }
+            QPushButton#close_btn {
+                background-color: transparent;
+                color: #888899;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0px;
+                border: none;
+                cursor: pointer;
+            }
+            QPushButton#close_btn:hover {
+                color: #ffffff;
+            }
+        """)
+        
+        # Set geometry & start animation
+        self.resize(360, 150)
+        available_geom = QApplication.primaryScreen().availableGeometry()
+        
+        width = 360
+        height = 150
+        final_x = available_geom.right() - width - 20
+        final_y = available_geom.bottom() - height - 20
+        start_x = final_x
+        start_y = available_geom.bottom() + 10
+        
+        self.setGeometry(start_x, start_y, width, height)
+        
+        # Slide up animation
+        self.anim = QPropertyAnimation(self, b"pos")
+        self.anim.setDuration(400)
+        self.anim.setStartValue(QPoint(start_x, start_y))
+        self.anim.setEndValue(QPoint(final_x, final_y))
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.anim.start()
+        
+        # 8-second auto close timer
+        self.close_timer = QTimer(self)
+        self.close_timer.setSingleShot(True)
+        self.close_timer.timeout.connect(self.animate_exit)
+        self.close_timer.start(8000)
+        
+    def enterEvent(self, event):
+        self.close_timer.stop()
+        super().enterEvent(event)
+        
+    def leaveEvent(self, event):
+        if not self.reply_input.hasFocus():
+            self.close_timer.start(8000)
+        super().leaveEvent(event)
+        
+    def mousePressEvent(self, event):
+        # Check what widget was clicked
+        child = self.childAt(event.position().toPoint())
+        if child not in [self.reply_input, self.send_btn, self.close_btn] and not isinstance(child, QPushButton):
+            self.parent_window.show()
+            self.parent_window.raise_()
+            self.parent_window.activateWindow()
+            
+            # Switch room JS
+            escaped_conv = self.conversation_id.replace("'", "\\'")
+            js_code = f"if (window.navigateToRoomFromSystem) {{ window.navigateToRoomFromSystem('{escaped_conv}'); }}"
+            self.parent_window.browser.page().runJavaScript(js_code)
+            self.animate_exit()
+        super().mousePressEvent(event)
+        
+    def handle_send_reply(self):
+        text = self.reply_input.text().strip()
+        if text:
+            self.parent_window.send_reply_from_notification(self.conversation_id, text)
+        self.animate_exit()
+        
+    def animate_exit(self):
+        if hasattr(self, "_exiting") and self._exiting:
+            return
+        self._exiting = True
+        
+        available_geom = QApplication.primaryScreen().availableGeometry()
+        current_pos = self.pos()
+        end_pos = QPoint(current_pos.x(), available_geom.bottom() + 10)
+        
+        self.exit_anim = QPropertyAnimation(self, b"pos")
+        self.exit_anim.setDuration(300)
+        self.exit_anim.setStartValue(current_pos)
+        self.exit_anim.setEndValue(end_pos)
+        self.exit_anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        
+        self.exit_anim.finished.connect(self.close)
+        self.exit_anim.start()
+
 class ReydmChatPage(QWebEnginePage):
     """Custom page to intercept /api/chat/open/ URLs and download+open locally."""
-    def __init__(self, profile, parent, server_url):
+    def __init__(self, profile, parent, main_window, server_url):
         super().__init__(profile, parent)
+        self.main_window = main_window
         self.server_url = server_url.rstrip('/')
+        
+        # Connect permission request signal to automatically grant it
+        self.featurePermissionRequested.connect(self.handle_feature_permission_requested)
+
+    def javaScriptAlert(self, securityOrigin, msg):
+        QMessageBox.warning(self.main_window, "REYDM Chat", msg)
+
+    def javaScriptConfirm(self, securityOrigin, msg):
+        result = QMessageBox.question(
+            self.main_window, 
+            "REYDM Chat", 
+            msg, 
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    def javaScriptPrompt(self, securityOrigin, msg, defaultVal):
+        val, ok = QInputDialog.getText(self.main_window, "REYDM Chat", msg, QLineEdit.EchoMode.Normal, defaultVal)
+        return ok, val
+
+    def handle_feature_permission_requested(self, securityOrigin, feature):
+        # Automatically grant permission (Notifications, Geolocation, etc.)
+        self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        if message.startswith("TRIGGER_OS_NOTIFICATION:"):
+            try:
+                parts = message.replace("TRIGGER_OS_NOTIFICATION:", "", 1).split("|", 2)
+                if len(parts) == 3:
+                    sender_name, text, conv_id = parts
+                    self.main_window.show_system_notification(sender_name, text, conv_id)
+            except Exception as e:
+                print(f"Error handling system notification trigger: {e}")
+        elif message.startswith("ACTIVE_ROOM_CHANGED:"):
+            self.main_window.current_room = message.replace("ACTIVE_ROOM_CHANGED:", "", 1).strip()
+            
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
 
     def acceptNavigationRequest(self, url, nav_type, is_main_frame):
         url_str = url.toString()
         if '/api/chat/open/' in url_str:
-            # Instead of server-side os.startfile, download and open locally
             import tempfile
             import urllib.request
+            import urllib.parse
             try:
-                filename = url_str.split('/api/chat/open/')[-1]
-                download_url = url_str.replace('/api/chat/open/', '/api/chat/download/')
-                tmp_dir = os.path.join(tempfile.gettempdir(), 'rey_chat_preview')
-                os.makedirs(tmp_dir, exist_ok=True)
-                local_path = os.path.join(tmp_dir, os.path.basename(filename))
-                urllib.request.urlretrieve(download_url, local_path)
-                os.startfile(local_path)
+                # Decoded filename path (e.g., "username/conversation_id/file.txt")
+                filename_path = url_str.split('/api/chat/open/')[-1]
+                filename_path = urllib.parse.unquote(filename_path)
+                
+                # Check local filesystem first (if running with a local server)
+                local_options = [
+                    os.path.join(r"C:\rey_chat", filename_path),
+                    os.path.join(os.getcwd(), "rey_chat", filename_path)
+                ]
+                opened_locally = False
+                for path in local_options:
+                    if os.path.exists(path):
+                        os.startfile(path)
+                        opened_locally = True
+                        break
+                
+                if not opened_locally:
+                    # Download the file using authenticated session cookies
+                    download_url = url_str.replace('/api/chat/open/', '/api/chat/download/')
+                    tmp_dir = os.path.join(tempfile.gettempdir(), 'rey_chat_preview')
+                    os.makedirs(tmp_dir, exist_ok=True)
+                    local_path = os.path.join(tmp_dir, os.path.basename(filename_path))
+                    
+                    # Create authenticated urllib request
+                    req = urllib.request.Request(download_url)
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+                    
+                    # Collect session cookies from the main window
+                    cookies = getattr(self.main_window, 'cookies', {})
+                    if cookies:
+                        cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+                        req.add_header('Cookie', cookie_str)
+                    
+                    # Perform download
+                    with urllib.request.urlopen(req) as response:
+                        with open(local_path, 'wb') as out_file:
+                            out_file.write(response.read())
+                            
+                    os.startfile(local_path)
             except Exception as e:
                 print(f"Error opening file: {e}")
             return False  # Don't navigate
@@ -99,7 +398,7 @@ class ReydmChatPage(QWebEnginePage):
         return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
 class ReydmChatDesktop(QMainWindow):
-    def __init__(self, target_url="https://YOUR-ONLINE-SERVER.onrender.com"):
+    def __init__(self, target_url="https://rey-chat.onrender.com/"):
         super().__init__()
         self.target_url = target_url
         self.setWindowTitle("REYDM Secure Chat")
@@ -123,6 +422,11 @@ class ReydmChatDesktop(QMainWindow):
         
         self.browser = QWebEngineView()
         self.profile = QWebEngineProfile.defaultProfile()
+        self.profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.NoCache)
+        
+        # Track cookies for authenticating file downloads
+        self.cookies = {}
+        self.profile.cookieStore().cookieAdded.connect(self.handle_cookie_added)
         
         # Enable Hardware Acceleration and High FPS WebGL
         settings = self.profile.settings()
@@ -131,8 +435,11 @@ class ReydmChatDesktop(QMainWindow):
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         
-        # Use custom page for URL interception
-        custom_page = ReydmChatPage(self.profile, self.browser, target_url)
+        self.active_notifications = []
+        self.load_attempts = 0
+        
+        # Use custom page for URL interception and notification bridge
+        custom_page = ReydmChatPage(self.profile, self.browser, self, target_url)
         self.browser.setPage(custom_page)
         
         # Connect load finished signal to check for connection failures
@@ -149,10 +456,22 @@ class ReydmChatDesktop(QMainWindow):
         # Connect download handler
         self.profile.downloadRequested.connect(self.handle_download_requested)
         
+    def handle_cookie_added(self, cookie):
+        name = cookie.name().data().decode('utf-8')
+        value = cookie.value().data().decode('utf-8')
+        self.cookies[name] = value
+        
     def handle_load_finished(self, success):
-        """If the connection to the online server fails, show a beautiful user-friendly setup guide."""
-        if not success:
-            self.show_config_error()
+        """If the connection to the online server fails, show a beautiful user-friendly setup guide after 3 retries."""
+        if success:
+            self.load_attempts = 0
+        else:
+            self.load_attempts += 1
+            if self.load_attempts < 3:
+                print(f"Server load failed. Retrying connection to server (Attempt {self.load_attempts + 1} of 3) in 5 seconds...")
+                QTimer.singleShot(5000, lambda: self.browser.setUrl(QUrl(self.target_url)))
+            else:
+                self.show_config_error()
             
     def show_config_error(self):
         """Displays a beautiful, dark-themed connection configuration page inside the app window."""
@@ -291,6 +610,29 @@ class ReydmChatDesktop(QMainWindow):
         else:
             download.cancel()
 
+    def show_system_notification(self, sender_name, text, conv_id):
+        is_minimized = self.isMinimized()
+        is_inactive = not self.isActiveWindow()
+        is_different_room = (getattr(self, "current_room", "") != conv_id)
+        
+        if is_minimized or is_inactive or is_different_room:
+            # Close any existing active notifications
+            for notif in list(self.active_notifications):
+                try:
+                    notif.close()
+                except Exception:
+                    pass
+            self.active_notifications.clear()
+            
+            notif = ReydmOSNotification(self, sender_name, text, conv_id)
+            self.active_notifications.append(notif)
+            notif.show()
+
+    def send_reply_from_notification(self, conversation_id, text):
+        escaped_text = text.replace('\\', '\\\\').replace("'", "\\'")
+        js_code = f"if (window.sendReplyFromSystem) {{ window.sendReplyFromSystem('{conversation_id}', '{escaped_text}'); }}"
+        self.browser.page().runJavaScript(js_code)
+
 if __name__ == "__main__":
     # Load configuration
     config = load_config()
@@ -302,10 +644,14 @@ if __name__ == "__main__":
         import app as flask_module
         from app import app as flask_app, socketio
         
+        import os
+        run_port = int(os.environ.get("PORT", os.environ.get("APP_PORT", 5000)))
+        
+        # Override target_url to load the local Flask server in QWebEngineView!
+        target_url = f"http://127.0.0.1:{run_port}/"
+        
         # Run local server binding to 0.0.0.0 so other network machines can connect
         def run_server():
-            import os
-            run_port = int(os.environ.get("PORT", os.environ.get("APP_PORT", 5000)))
             socketio.run(flask_app, host="0.0.0.0", port=run_port, allow_unsafe_werkzeug=True)
 
         backend_thread = threading.Thread(target=run_server, daemon=True)
