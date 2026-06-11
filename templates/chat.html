@@ -1133,6 +1133,105 @@
     border-color: var(--primary) !important;
     background: rgba(99, 102, 241, 0.2);
 }
+.mobile-back-btn, #sidebarBackBtn {
+    display: none;
+}
+
+/* ─── Mobile View Styling (WhatsApp-style Slide Transition) ──────────────── */
+@media (max-width: 767px) {
+    .app-container {
+        flex-direction: row !important;
+        width: 100vw !important;
+        height: 100vh !important;
+        overflow: hidden !important;
+        position: relative !important;
+    }
+    
+    .sidebar {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        z-index: 10 !important;
+        display: flex !important;
+        transform: translateX(0) !important;
+    }
+
+    .chat-area {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        flex: none !important;
+        transition: transform 0.3s cubic-bezier(0.16, 1, 0.3, 1) !important;
+        position: absolute !important;
+        top: 0 !important;
+        left: 0 !important;
+        bottom: 0 !important;
+        z-index: 5 !important;
+        display: flex !important;
+        transform: translateX(100%) !important;
+    }
+
+    /* Toggle screen state based on .chat-active class */
+    .app-container.chat-active .sidebar {
+        transform: translateX(-100%) !important;
+    }
+
+    .app-container.chat-active .chat-area {
+        transform: translateX(0) !important;
+        z-index: 15 !important;
+    }
+
+    .sidebar-header, .chat-header, .chat-input-area {
+        padding: 12px 16px !important;
+    }
+
+    .mobile-back-btn {
+        display: flex !important;
+        align-items: center;
+        justify-content: center;
+        background: none;
+        border: none;
+        color: var(--primary);
+        font-size: 20px;
+        cursor: pointer;
+        padding: 8px 12px;
+        margin-right: -5px;
+        border-radius: 50%;
+        transition: background 0.2s;
+    }
+    .mobile-back-btn:hover {
+        background: rgba(255, 255, 255, 0.08);
+    }
+
+    /* Toggle sidebar header back button & hide vertical app bar on mobile when non-chats tab active */
+    .app-container.non-chats-active #sidebarBackBtn {
+        display: inline-flex !important;
+    }
+    .app-container.non-chats-active .teams-app-bar {
+        display: none !important;
+    }
+    
+    /* Make info panels full-screen drawers on mobile */
+    .group-info-panel, .msg-info-panel {
+        width: 100% !important;
+        min-width: 100% !important;
+        max-width: 100% !important;
+        border-left: none !important;
+        z-index: 200 !important;
+    }
+    
+    /* Responsive modal body width on mobile */
+    .new-chat-modal-body {
+        width: 90% !important;
+        max-width: 380px !important;
+    }
+}
 </style>
 {% endblock %}
 
@@ -1189,7 +1288,12 @@
         <!-- Middle Sidebar panel -->
         <div class="teams-sidebar-panel">
             <div class="teams-panel-header">
-                <div class="teams-panel-title" id="teamsPanelTitle">Chats</div>
+                <div style="display: flex; align-items: center;">
+                    <button id="sidebarBackBtn" class="mobile-back-btn" onclick="switchTab('chats')" style="display: none; margin-right: 10px; padding: 4px 8px;">
+                        <i class="fa-solid fa-arrow-left"></i>
+                    </button>
+                    <div class="teams-panel-title" id="teamsPanelTitle">Chats</div>
+                </div>
             </div>
             
             <!-- Sidebar Search Bar -->
@@ -1289,6 +1393,9 @@
 
         <div id="chatHeader" class="chat-header" style="display: none; justify-content: space-between; align-items: center; width: 100%; box-sizing: border-box;">
             <div style="display: flex; align-items: center; gap: 15px;">
+                <button id="mobileBackBtn" class="mobile-back-btn" onclick="goBackToChatsList()">
+                    <i class="fa-solid fa-arrow-left"></i>
+                </button>
                 <div class="avatar" id="chatAvatar">U</div>
                 <div>
                     <div style="font-weight: 600;" id="chatName">User Name</div>
@@ -1726,13 +1833,9 @@ socket.on('user_status_changed', function(data) {
     socket.on('group_deleted', function(data) {
         if (currentRoom === 'group_' + data.group_id) {
             showToast("This group was deleted by an admin.", "error");
-            currentRoom = null;
-            document.getElementById('emptyState').style.display = 'flex';
-            document.getElementById('chatHeader').style.display = 'none';
-            document.getElementById('msgArea').style.display = 'none';
-            document.getElementById('inputArea').style.display = 'none';
-        }
-        loadConversations();
+        goBackToChatsList();
+    }
+    loadConversations();
     });
 
     // Escape HTML to prevent XSS when injecting user-supplied text via innerHTML.
@@ -2173,6 +2276,7 @@ socket.on('user_status_changed', function(data) {
         const activeItem = document.getElementById('conv-' + currentRoom);
         if (activeItem) activeItem.classList.add('active');
         
+        document.querySelector('.app-container').classList.add('chat-active');
         document.getElementById('emptyState').style.display = 'none';
         document.getElementById('chatHeader').style.display = 'flex';
         updateChatStatus();
@@ -3073,6 +3177,10 @@ socket.on('user_status_changed', function(data) {
     // Tab logic
     // Tab logic
 function switchTab(tab) {
+    const container = document.querySelector('.app-container');
+    if (container) {
+        container.classList.toggle('non-chats-active', tab !== 'chats');
+    }
     const chatsBtn = document.getElementById('teamsBtnChats');
     const groupsBtn = document.getElementById('teamsBtnGroups');
     const availBtn = document.getElementById('teamsBtnAvailable');
@@ -4686,12 +4794,7 @@ async function clearStorage() {
                     const data = await res.json();
                     if (data.success) {
                         showToast("Group deleted successfully.", "success");
-                        closeGroupInfo();
-                        currentRoom = null;
-                        document.getElementById('emptyState').style.display = 'flex';
-                        document.getElementById('chatHeader').style.display = 'none';
-                        document.getElementById('msgArea').style.display = 'none';
-                        document.getElementById('inputArea').style.display = 'none';
+                        goBackToChatsList();
                         loadConversations();
                     } else {
                         showToast(data.message || "Failed to delete group.", "error");
@@ -4981,13 +5084,7 @@ async function clearStorage() {
                 const data = await res.json();
                 if (data.success) {
                     showToast("You left the group.", "info");
-                    closeGroupInfo();
-                    currentPartnerId = null;
-                    currentRoom = null;
-                    document.getElementById('emptyState').style.display = 'flex';
-                    document.getElementById('chatHeader').style.display = 'none';
-                    document.getElementById('msgArea').style.display = 'none';
-                    document.getElementById('inputArea').style.display = 'none';
+                    goBackToChatsList();
                     loadConversations();
                 } else {
                     showToast(data.message || "Failed to leave group.", "error");
@@ -5484,5 +5581,31 @@ async function clearStorage() {
             }
         }
     };
+
+function goBackToChatsList() {
+    document.querySelector('.app-container').classList.remove('chat-active');
+    document.querySelectorAll('.user-item').forEach(el => el.classList.remove('active'));
+    
+    const emptyState = document.getElementById('emptyState');
+    if (emptyState) emptyState.style.display = 'flex';
+    
+    const chatHeader = document.getElementById('chatHeader');
+    if (chatHeader) chatHeader.style.display = 'none';
+    
+    const msgArea = document.getElementById('msgArea');
+    if (msgArea) msgArea.style.display = 'none';
+    
+    const inputArea = document.getElementById('inputArea');
+    if (inputArea) inputArea.style.display = 'none';
+    
+    if (typeof closeGroupInfo === 'function') closeGroupInfo();
+    if (typeof closeMsgInfo === 'function') closeMsgInfo();
+    
+    if (currentRoom) {
+        socket.emit('leave', { conversation_id: currentRoom });
+        currentRoom = null;
+        currentPartnerId = null;
+    }
+}
 </script>
 {% endblock %}
