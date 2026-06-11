@@ -1232,6 +1232,109 @@
         max-width: 380px !important;
     }
 }
+
+/* ─── WhatsApp Input Layout ──────────────── */
+.chat-input-area {
+    padding: 10px 15px !important;
+    background: transparent !important;
+    border-top: none !important; /* No top border, WhatsApp style floating look */
+    display: none; /* Flex when active */
+    align-items: flex-end !important; /* Keep items aligned to bottom when textarea grows */
+    gap: 8px !important;
+    box-sizing: border-box;
+    width: 100%;
+}
+
+.whatsapp-input-pill {
+    flex: 1;
+    background: #1f2c34; /* WhatsApp dark mode input bar background */
+    border-radius: 24px;
+    padding: 5px 12px;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    min-height: 48px;
+    box-sizing: border-box;
+    border: 1px solid rgba(255, 255, 255, 0.03);
+}
+
+.whatsapp-pill-btn {
+    background: none;
+    border: none;
+    color: #8696a0; /* WhatsApp dark mode icon color */
+    font-size: 20px;
+    cursor: pointer;
+    padding: 6px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: color 0.15s, transform 0.1s;
+    outline: none;
+    flex-shrink: 0;
+}
+.whatsapp-pill-btn:hover {
+    color: #aebac1;
+    transform: scale(1.05);
+}
+
+#msgIn {
+    flex: 1;
+    background: transparent !important;
+    border: none !important;
+    padding: 6px 4px !important;
+    color: #e9edef !important;
+    outline: none !important;
+    font-family: inherit;
+    font-size: 15px !important;
+    resize: none !important;
+    height: 24px !important; /* Start height */
+    min-height: 24px !important;
+    max-height: 120px !important; /* Allow growing */
+    box-sizing: border-box;
+    caret-color: #00adb5 !important; /* Vibrant caret color matching our theme */
+    line-height: 20px;
+}
+#msgIn::placeholder {
+    color: #8696a0;
+}
+
+.whatsapp-circle-btn {
+    width: 48px;
+    height: 48px;
+    min-width: 48px;
+    border-radius: 50%;
+    background: #00adb5 !important; /* REYDM signature teal/green */
+    color: #121212 !important; /* Dark icon */
+    border: none;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-size: 20px;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.25);
+    transition: transform 0.15s, background-color 0.15s;
+    outline: none;
+    flex-shrink: 0;
+}
+.whatsapp-circle-btn:hover {
+    background: #008f96 !important;
+    transform: scale(1.05);
+}
+.whatsapp-circle-btn:active {
+    transform: scale(0.95);
+}
+.whatsapp-circle-btn.recording {
+    background: #ef4444 !important;
+    color: white !important;
+    animation: pulseRecording 1.5s infinite;
+}
+
+@keyframes pulseRecording {
+    0% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
+    70% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
+    100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0); }
+}
+
 </style>
 {% endblock %}
 
@@ -1476,23 +1579,36 @@
             </div>
             <div id="mentionDropdown" class="mention-dropdown"></div>
 
-            <button class="icon-btn" onclick="document.getElementById('fileInput').click()" title="Attach File">
-                <i class="fa-solid fa-paperclip"></i>
-            </button>
-            <input type="file" id="fileInput" multiple onchange="handleFileUpload()">
+            <div class="whatsapp-input-pill">
+                <!-- Emoji button -->
+                <button class="whatsapp-pill-btn" id="emojiBtn" title="Emojis" type="button">
+                    <i class="fa-regular fa-face-smile"></i>
+                </button>
+                
+                <!-- Text area input -->
+                <textarea id="msgIn" placeholder="Message" autocomplete="off" rows="1"></textarea>
+                
+                <!-- Attachment paperclip button -->
+                <button class="whatsapp-pill-btn" onclick="document.getElementById('fileInput').click()" title="Attach File" type="button">
+                    <i class="fa-solid fa-paperclip"></i>
+                </button>
+                
+                <!-- Dummy Payment button -->
+                <button class="whatsapp-pill-btn" title="Payment" onclick="showToast('Payment feature coming soon!', 'info')" type="button">
+                    <i class="fa-solid fa-indian-rupee-sign"></i>
+                </button>
+                
+                <!-- Camera button -->
+                <button class="whatsapp-pill-btn" onclick="document.getElementById('fileInput').click()" title="Camera" type="button">
+                    <i class="fa-solid fa-camera"></i>
+                </button>
+            </div>
             
-            <button class="icon-btn" id="emojiBtn" title="Emojis">
-                <i class="fa-solid fa-face-smile"></i>
-            </button>
+            <input type="file" id="fileInput" multiple onchange="handleFileUpload()" style="display: none;">
             
-            <textarea id="msgIn" placeholder="Type a message..." autocomplete="off"></textarea>
-            
-            <button class="icon-btn" id="micBtn" title="Voice Note">
+            <!-- Dynamic WhatsApp Green Action Circle (Mic or Send) -->
+            <button class="whatsapp-circle-btn" id="micBtn" title="Voice Note" type="button">
                 <i class="fa-solid fa-microphone"></i>
-            </button>
-            
-            <button class="icon-btn send" onclick="sendMsg()" title="Send">
-                <i class="fa-solid fa-paper-plane"></i>
             </button>
         </div>
         
@@ -1943,16 +2059,17 @@ socket.on('user_status_changed', function(data) {
         msgIn.value = msg.message_text;
         msgIn.focus();
         
-        msgIn.style.height = '50px';
-        if (msgIn.scrollHeight > 50) {
-            msgIn.style.height = msgIn.scrollHeight + 'px';
+        msgIn.style.height = '24px';
+        if (msgIn.scrollHeight > 24) {
+            msgIn.style.height = Math.min(msgIn.scrollHeight, 120) + 'px';
         }
     }
     function cancelEdit() {
         editMsgId = null;
         document.getElementById('editBanner').style.display = 'none';
         document.getElementById('msgIn').value = '';
-        document.getElementById('msgIn').style.height = '50px';
+        document.getElementById('msgIn').style.height = '24px';
+        updateSendBtnState();
     }
 
     let activeContextMsgId = null;
@@ -3785,7 +3902,7 @@ async function clearStorage() {
     let stagedFiles = [];
 
     function checkUploadStates() {
-        const sendBtn = document.querySelector('.icon-btn.send');
+        const sendBtn = document.getElementById('micBtn');
         if (!sendBtn) return;
         
         const isUploading = stagedFiles.some(f => f.status === 'uploading');
@@ -3847,6 +3964,7 @@ async function clearStorage() {
         }
         renderStagedFiles();
         checkUploadStates();
+        updateSendBtnState();
     }
 
     function cancelStagedFiles() {
@@ -3858,6 +3976,7 @@ async function clearStorage() {
         stagedFiles = [];
         renderStagedFiles();
         checkUploadStates();
+        updateSendBtnState();
     }
     
     function cancelStagedFile() {
@@ -4158,12 +4277,36 @@ async function clearStorage() {
 
     // Mentions and Auto-resize logic
     const mentionDropdown = document.getElementById('mentionDropdown');
+function updateSendBtnState() {
+    const inp = document.getElementById('msgIn');
+    const micBtn = document.getElementById('micBtn');
+    if (!inp || !micBtn) return;
+    const text = inp.value.trim();
+    const hasFiles = typeof stagedFiles !== 'undefined' && stagedFiles.length > 0;
+    
+    if (text.length > 0 || hasFiles) {
+        micBtn.innerHTML = '<i class="fa-solid fa-paper-plane"></i>';
+        micBtn.title = 'Send';
+        micBtn.classList.add('send-active');
+    } else {
+        if (typeof mediaRecorder !== 'undefined' && mediaRecorder && mediaRecorder.state === 'recording') {
+            micBtn.innerHTML = '<i class="fa-solid fa-stop"></i>';
+            micBtn.title = 'Stop Recording';
+        } else {
+            micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            micBtn.title = 'Voice Note';
+        }
+        micBtn.classList.remove('send-active');
+    }
+}
+
     msgIn.addEventListener('input', function() {
         // Auto-resize
-        this.style.height = '50px';
-        if (this.scrollHeight > 50) {
-            this.style.height = this.scrollHeight + 'px';
+        this.style.height = '24px';
+        if (this.scrollHeight > 24) {
+            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
         }
+        updateSendBtnState();
         
         if(currentRoom) socket.emit('typing', { conversation_id: currentRoom });
         
@@ -4202,6 +4345,12 @@ async function clearStorage() {
     let audioChunks = [];
 
     micBtn.addEventListener('click', async () => {
+        const text = msgIn.value.trim();
+        const hasFiles = typeof stagedFiles !== 'undefined' && stagedFiles.length > 0;
+        if (text.length > 0 || hasFiles) {
+            sendMsg();
+            return;
+        }
         if (!currentRoom) return showToast("Select a conversation first.", "warning");
         
         if (!mediaRecorder || mediaRecorder.state === 'inactive') {
@@ -4279,7 +4428,8 @@ async function clearStorage() {
             });
             cancelEdit();
             inp.value = '';
-            inp.style.height = '50px';
+            inp.style.height = '24px';
+            updateSendBtnState();
             return;
         }
         
@@ -4301,7 +4451,8 @@ async function clearStorage() {
             });
             
             inp.value = '';
-            inp.style.height = '50px';
+            inp.style.height = '24px';
+            updateSendBtnState();
             cancelReply();
             cancelStagedFiles();
         } else {
@@ -4323,7 +4474,8 @@ async function clearStorage() {
             scrollToBottom();
             
             inp.value = '';
-            inp.style.height = '50px';
+            inp.style.height = '24px';
+            updateSendBtnState();
             cancelReply();
             
             socket.emit('send_message', {
@@ -4460,6 +4612,7 @@ async function clearStorage() {
         
         renderStagedFiles();
         checkUploadStates();
+        updateSendBtnState();
     }
 
     // Drag and Drop Events
