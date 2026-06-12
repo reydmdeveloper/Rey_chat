@@ -2259,16 +2259,11 @@ def admin_delete_user(user_id):
 @login_required
 def profile():
     if request.method == "POST":
-        current_password = request.form.get("current_password", "")
         new_password = request.form.get("new_password", "")
         confirm_password = request.form.get("confirm_password", "")
         conn = get_db()
         cur = conn.cursor(dictionary=True)
-        cur.execute("SELECT * FROM users WHERE id = %s", (session["user_id"],))
-        user = cur.fetchone()
-        if not check_password_hash(user["password_hash"], current_password):
-            flash("Current password is incorrect.", "danger")
-        elif len(new_password) < 6:
+        if len(new_password) < 6:
             flash("New password must be at least 6 characters.", "danger")
         elif new_password != confirm_password:
             flash("New passwords do not match.", "danger")
@@ -3732,6 +3727,30 @@ def update_profile():
         conn.close()
 
 
+@app.route("/api/chat/profile/change-password", methods=["POST"])
+@login_required
+def change_password_api():
+    uid = session["user_id"]
+    data = request.json
+    new_password = data.get("new_password", "").strip()
+    
+    if len(new_password) < 6:
+        return jsonify({"success": False, "message": "Password must be at least 6 characters long"}), 400
+        
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        pw_hash = generate_password_hash(new_password)
+        cur.execute("UPDATE users SET password_hash = %s WHERE id = %s", (pw_hash, uid))
+        conn.commit()
+        return jsonify({"success": True, "message": "Password updated successfully"})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Database error: {str(e)}"}), 500
+    finally:
+        cur.close()
+        conn.close()
+
+
 @app.route("/api/chat/clear-storage", methods=["POST"])
 @login_required
 def clear_storage():
@@ -3759,6 +3778,39 @@ def clear_storage():
         return jsonify({"success": True, "message": "Storage cleared successfully!"})
     except Exception as e:
         return jsonify({"success": False, "message": str(e)}), 500
+
+
+# ─── UNREAD NOTIFICATIONS API ───────────────────────────────────────
+
+@app.route("/api/chat/unread-notifications", methods=["GET"])
+@login_required
+def get_unread_notifications():
+    """Returns new unread messages for background notification polling."""
+    uid = session["user_id"]
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("""
+            SELECT m.id, m.conversation_id, m.message_text, m.message_type, m.sender_id, u.full_name as sender_name
+            FROM messages m
+            JOIN users u ON m.sender_id = u.id
+            WHERE m.sender_id != %s 
+              AND m.status != 'read'
+              AND (m.conversation_id LIKE %s OR m.conversation_id LIKE %s 
+                   OR m.conversation_id IN (
+                       SELECT CONCAT('group_', group_id) 
+                       FROM chat_group_members 
+                       WHERE user_id = %s
+                   ))
+        """, (uid, f"chat_{uid}_%", f"chat_%_{uid}", uid))
+        unread = cur.fetchall()
+        return jsonify(unread)
+    except Exception as e:
+        print("Error getting unread notifications:", e)
+        return jsonify([]), 500
+    finally:
+        cur.close()
+        conn.close()
 
 
 # ─── CONVERSATIONS API ──────────────────────────────────────────────
@@ -4024,6 +4076,22 @@ def link_preview():
         return jsonify({"success": False}), 500
 
 
+def get_user_name_from_db(uid):
+    conn = get_db()
+    if not conn:
+        return "A user"
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT full_name FROM users WHERE id = %s", (uid,))
+        user = cur.fetchone()
+        return user["full_name"] if user else "A user"
+    except Exception:
+        return "A user"
+    finally:
+        cur.close()
+        conn.close()
+
+
 @socketio.on('connect')
 def on_connect():
     user_id = session.get('user_id')
@@ -4038,7 +4106,8 @@ def on_connect():
     online_users[user_id].add(sid)
     if is_new:
         user_custom_statuses[user_id] = 'online'
-        emit('user_status_changed', {'user_id': user_id, 'status': 'online'}, broadcast=True)
+        username = get_user_name_from_db(user_id)
+        emit('user_status_changed', {'user_id': user_id, 'full_name': username, 'status': 'online'}, broadcast=True)
 
     # Personal room: lets us push new-chat notifications to a user even when
     # they have not opened (joined) that specific conversation room yet.
@@ -4087,7 +4156,8 @@ def on_disconnect():
         if not online_users[user_id]:
             online_users.pop(user_id)
             user_custom_statuses.pop(user_id, None)
-            emit('user_status_changed', {'user_id': user_id, 'status': 'offline'}, broadcast=True)
+            username = get_user_name_from_db(user_id)
+            emit('user_status_changed', {'user_id': user_id, 'full_name': username, 'status': 'offline'}, broadcast=True)
 
 @socketio.on('change_status')
 def handle_change_status(data):
@@ -4096,12 +4166,13 @@ def handle_change_status(data):
     if not user_id or status not in ['online', 'away', 'offline']:
         return
     
+    username = get_user_name_from_db(user_id)
     if status == 'offline':
         user_custom_statuses.pop(user_id, None)
-        emit('user_status_changed', {'user_id': user_id, 'status': 'offline'}, broadcast=True)
+        emit('user_status_changed', {'user_id': user_id, 'full_name': username, 'status': 'offline'}, broadcast=True)
     else:
         user_custom_statuses[user_id] = status
-        emit('user_status_changed', {'user_id': user_id, 'status': status}, broadcast=True)
+        emit('user_status_changed', {'user_id': user_id, 'full_name': username, 'status': status}, broadcast=True)
 
 @socketio.on('join')
 def on_join(data):
@@ -4486,6 +4557,12 @@ def handle_react_message(data):
             action = 'added'
         conn.commit()
         
+        # Get the original message details to notify the sender
+        cur.execute("SELECT sender_id, message_text FROM messages WHERE id = %s", (msg_id,))
+        orig_msg = cur.fetchone()
+        orig_sender_id = orig_msg["sender_id"] if orig_msg else None
+        orig_text = orig_msg["message_text"] if orig_msg else ""
+        
         # Fetch updated reactions for this message
         cur.execute("""
             SELECT mr.emoji, mr.user_id, u.full_name
@@ -4500,7 +4577,13 @@ def handle_react_message(data):
         emit('message_reacted', {
             'message_id': msg_id,
             'reactions': reactions,
-            'conversation_id': room
+            'conversation_id': room,
+            'action': action,
+            'reactor_id': user_id,
+            'reactor_name': user_name,
+            'orig_sender_id': orig_sender_id,
+            'orig_text': orig_text,
+            'emoji': emoji
         }, room=room)
     except Exception as e:
         print("Error handling reaction:", e)

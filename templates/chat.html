@@ -1145,6 +1145,8 @@
         height: 100vh !important;
         overflow: hidden !important;
         position: relative !important;
+        user-select: none;
+        -webkit-user-select: none;
     }
     
     .sidebar {
@@ -1160,6 +1162,7 @@
         z-index: 10 !important;
         display: flex !important;
         transform: translateX(0) !important;
+        will-change: transform;
     }
 
     .chat-area {
@@ -1175,6 +1178,17 @@
         z-index: 5 !important;
         display: flex !important;
         transform: translateX(100%) !important;
+        will-change: transform;
+        
+        /* Premium Immersive Wallpaper on mobile chat */
+        background-color: #0b141a !important;
+        background-image: radial-gradient(circle at 80% 20%, rgba(0, 173, 181, 0.08) 0%, transparent 50%),
+                          radial-gradient(circle at 15% 75%, rgba(0, 173, 181, 0.03) 0%, transparent 45%) !important;
+    }
+    
+    .chat-area::before {
+        opacity: 0.025 !important; /* Extremely subtle logo watermark */
+        background-size: min(280px, 45%) !important;
     }
 
     /* Toggle screen state based on .chat-active class */
@@ -1187,8 +1201,20 @@
         z-index: 15 !important;
     }
 
-    .sidebar-header, .chat-header, .chat-input-area {
-        padding: 12px 16px !important;
+    .sidebar-header, .chat-header {
+        padding: 10px 14px !important;
+        background: rgba(26, 26, 36, 0.92) !important;
+        backdrop-filter: blur(12px);
+        -webkit-backdrop-filter: blur(12px);
+        border-bottom: 1px solid rgba(255, 255, 255, 0.06) !important;
+    }
+    
+    .chat-input-area {
+        padding: 8px 10px !important;
+        background: rgba(26, 26, 36, 0.85) !important;
+        backdrop-filter: blur(10px);
+        -webkit-backdrop-filter: blur(10px);
+        border-top: 1px solid rgba(255, 255, 255, 0.05) !important;
     }
 
     .mobile-back-btn {
@@ -1198,15 +1224,60 @@
         background: none;
         border: none;
         color: var(--primary);
-        font-size: 20px;
+        font-size: 18px;
         cursor: pointer;
-        padding: 8px 12px;
-        margin-right: -5px;
+        padding: 6px 10px;
+        margin-right: -4px;
         border-radius: 50%;
         transition: background 0.2s;
+        touch-action: manipulation;
     }
     .mobile-back-btn:hover {
         background: rgba(255, 255, 255, 0.08);
+    }
+    
+    /* Active touch feedback for user items (Scale & Glow) */
+    .user-item {
+        transition: background 0.15s ease, transform 0.1s ease !important;
+        touch-action: manipulation;
+    }
+    .user-item:active {
+        background: rgba(255, 255, 255, 0.08) !important;
+        transform: scale(0.975);
+    }
+    
+    /* Touch target optimizations for other buttons */
+    .teams-nav-btn, .whatsapp-pill-btn, .whatsapp-circle-btn, .icon-btn, .context-menu-item {
+        touch-action: manipulation;
+    }
+    
+    /* Optimized Chat Bubbles with soft shadows and rounded corners */
+    .msg-wrapper {
+        max-width: 82% !important; /* Better screen usage on mobile */
+        will-change: transform, opacity;
+    }
+    .msg-bubble {
+        padding: 8px 12px !important;
+        border-radius: 16px !important;
+        box-shadow: 0 1px 3px rgba(0, 0, 0, 0.15), 0 1px 1px rgba(0,0,0,0.08);
+    }
+    .mine .msg-bubble {
+        border-bottom-right-radius: 4px !important;
+    }
+    .theirs .msg-bubble {
+        border-bottom-left-radius: 4px !important;
+    }
+    
+    /* Momentum Scrolling & High Refresh Rate optimizations */
+    .messages-container {
+        padding: 14px !important;
+        will-change: scroll-position;
+        -webkit-overflow-scrolling: touch;
+    }
+    
+    .user-list {
+        will-change: scroll-position;
+        -webkit-overflow-scrolling: touch;
     }
 
     /* Toggle sidebar header back button & hide vertical app bar on mobile when non-chats tab active */
@@ -1357,6 +1428,9 @@
                         <div class="teams-status-dropdown-item" onclick="selectTeamsStatus('away')">
                             🟡 Away
                         </div>
+                        <div class="teams-status-dropdown-item" onclick="selectTeamsStatus('offline')">
+                            🔴 Offline
+                        </div>
 <div class="teams-status-dropdown-item" onclick="switchTab('settings')" style="border-top: 1px solid var(--border-color); margin-top: 5px; padding-top: 8px;">
     ⚙️ Settings
 </div>
@@ -1465,6 +1539,18 @@
                 <span>Role:</span>
                 <span id="settingsRole" style="color: white; font-weight: 500; text-transform: uppercase;">...</span>
             </div>
+        </div>
+
+        <!-- Change Password Option -->
+        <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--glass-border); padding-top: 15px; margin-top: 5px;">
+            <span class="settings-field-label" style="margin: 0;">Change Password</span>
+            <div style="display: flex; flex-direction: column; gap: 8px;">
+                <input id="settingsNewPassword" type="password" placeholder="New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6">
+                <input id="settingsConfirmPassword" type="password" placeholder="Confirm New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6">
+            </div>
+            <button onclick="changePasswordFromSettings()" class="teams-btn" style="background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; outline: none;">
+                <i class="fa-solid fa-key"></i> Update Password
+            </button>
         </div>
 
         <!-- Storage Clear Option -->
@@ -1930,6 +2016,20 @@ socket.on('user_status_changed', function(data) {
             renderAvailableTab();
         }
         
+        // Show notification toast for other users' status changes
+        if (data.user_id != UID && data.full_name) {
+            let statusLabel = 'Offline';
+            let emoji = '🔴';
+            if (data.status === 'online') {
+                statusLabel = 'Online';
+                emoji = '🟢';
+            } else if (data.status === 'away') {
+                statusLabel = 'Away';
+                emoji = '🟡';
+            }
+            showToast(`${emoji} ${data.full_name} is now ${statusLabel}`, "info");
+        }
+        
         // Also update the status dot in the recent chats list!
         const dots = document.querySelectorAll(`.user-status-dot-${data.user_id}`);
         dots.forEach(dot => {
@@ -1938,6 +2038,8 @@ socket.on('user_status_changed', function(data) {
                 statusDotColor = '#25d366';
             } else if (data.status === 'away') {
                 statusDotColor = '#ffbc00';
+            } else if (data.status === 'offline') {
+                statusDotColor = '#8e8e93';
             }
             dot.style.backgroundColor = statusDotColor;
         });
@@ -2789,8 +2891,8 @@ socket.on('user_status_changed', function(data) {
             }
             const cleanText = messagePreview.replace(/\n/g, ' ').replace(/\|/g, ' ');
             
-            // 1. Notify PyQt6 Desktop App immediately via console (Python will decide when to pop it up)
-            console.log("TRIGGER_OS_NOTIFICATION:" + senderName + "|" + cleanText + "|" + msg.conversation_id);
+            // 1. Notify PyQt6 Desktop App or mobile App
+            triggerOSNotification(senderName, cleanText, msg.conversation_id);
             
             // 2. Or trigger standard browser HTML5 notification if in a browser and permission granted
             if (!navigator.userAgent.includes("REYDM-Secure-Chat-Desktop")) {
@@ -3286,6 +3388,13 @@ socket.on('user_status_changed', function(data) {
         if (window.chatMessages && window.chatMessages[data.message_id]) {
             window.chatMessages[data.message_id].reactions = data.reactions;
         }
+
+        // Show notification toast and trigger OS notification for other users' reactions
+        if (data.action === 'added' && data.orig_sender_id == UID && data.reactor_id != UID) {
+            const notifyText = `reacted ${data.emoji} to: "${data.orig_text}"`;
+            triggerOSNotification(data.reactor_name, notifyText, data.conversation_id);
+            showToast(`${data.reactor_name} reacted ${data.emoji} to your message`, "info");
+        }
     });
     
     // Tab logic
@@ -3608,19 +3717,58 @@ async function clearStorage() {
                 dot.style.backgroundColor = '#25d366';
             } else if (val === 'away') {
                 dot.style.backgroundColor = '#ffbc00';
+            } else if (val === 'offline') {
+                dot.style.backgroundColor = '#8e8e93';
             }
         }
         
-        if (val === 'offline') {
-            socket.emit('change_status', { status: 'offline' });
-            showToast("Logging out...", "info");
-            setTimeout(() => {
-                window.location.href = '/logout';
-            }, 500);
+        socket.emit('change_status', { status: val });
+        let statusLabel = '🟢 Online';
+        if (val === 'away') statusLabel = '🟡 Away';
+        else if (val === 'offline') statusLabel = '🔴 Offline';
+        
+        showToast("Availability status updated to: " + statusLabel, "success");
+    }
+
+    async function changePasswordFromSettings() {
+        const newPassword = document.getElementById('settingsNewPassword').value;
+        const confirmPassword = document.getElementById('settingsConfirmPassword').value;
+        
+        if (!newPassword || !confirmPassword) {
+            showToast("Both password fields are required", "danger");
             return;
         }
-        socket.emit('change_status', { status: val });
-        showToast("Availability status updated to: " + (val === 'online' ? '🟢 Online' : '🟡 Away'), "success");
+        if (newPassword.length < 6) {
+            showToast("Password must be at least 6 characters long", "danger");
+            return;
+        }
+        if (newPassword !== confirmPassword) {
+            showToast("Passwords do not match", "danger");
+            return;
+        }
+        
+        try {
+            const res = await fetch('/api/chat/profile/change-password', {
+                method: 'POST',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({
+                    new_password: newPassword
+                })
+            });
+            const data = await res.json();
+            if (data.success) {
+                showToast("Password updated successfully!", "success");
+                document.getElementById('settingsNewPassword').value = '';
+                document.getElementById('settingsConfirmPassword').value = '';
+            } else {
+                showToast(data.message || "Failed to update password", "danger");
+            }
+        } catch (err) {
+            console.error("Error changing password:", err);
+            showToast("Error changing password", "danger");
+        }
     }
 
     function renderAvailableTab() {
@@ -5682,6 +5830,14 @@ function updateSendBtnState() {
     // Auto Load Theme on Init
     const savedTheme = localStorage.getItem('theme') || 'dark';
     document.documentElement.setAttribute('data-theme', savedTheme);
+
+    function triggerOSNotification(senderName, text, room) {
+        const payload = "TRIGGER_OS_NOTIFICATION:" + senderName + "|" + text + "|" + room;
+        console.log(payload);
+        if (window.FlutterChannel) {
+            window.FlutterChannel.postMessage(payload);
+        }
+    }
 
     // --- OS Notification Interop Callbacks ---
     window.sendReplyFromSystem = function(convId, text) {
