@@ -12,14 +12,221 @@ except Exception:
 from PyQt6.QtCore import QUrl, Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve
 from PyQt6.QtWidgets import (
     QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QDialog,
-    QLabel, QLineEdit, QPushButton, QGraphicsDropShadowEffect, QMessageBox, QInputDialog
+    QLabel, QLineEdit, QPushButton, QGraphicsDropShadowEffect, QMessageBox,
+    QInputDialog, QSystemTrayIcon, QMenu, QStyle
 )
-from PyQt6.QtGui import QIcon, QFont, QColor
+from PyQt6.QtGui import QIcon, QFont, QColor, QAction
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
 from PyQt6.QtWebEngineWidgets import QWebEngineView
 from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
 
 import os
 import time
+import shutil
+import subprocess
+import winreg
+
+
+def get_install_dir():
+    appdata = os.getenv("LOCALAPPDATA")
+    if not appdata:
+        appdata = os.path.expanduser("~\\AppData\\Local")
+    return os.path.join(appdata, "Programs", "ReydmChat")
+
+def create_shortcut(target_path, shortcut_path, description="REYDM Secure Chat"):
+    powershell_cmd = (
+        f'$WshShell = New-Object -ComObject WScript.Shell; '
+        f'$Shortcut = $WshShell.CreateShortcut("{shortcut_path}"); '
+        f'$Shortcut.TargetPath = "{target_path}"; '
+        f'$Shortcut.Description = "{description}"; '
+        f'$Shortcut.WorkingDirectory = "{os.path.dirname(target_path)}"; '
+        f'$Shortcut.Save()'
+    )
+    try:
+        subprocess.run(
+            ["powershell", "-NoProfile", "-Command", powershell_cmd],
+            capture_output=True, text=True, check=True
+        )
+        return True
+    except Exception as e:
+        print(f"Error creating shortcut: {e}")
+        return False
+
+def set_startup(enabled=True):
+    try:
+        if getattr(sys, 'frozen', False):
+            path = sys.executable
+        else:
+            path = os.path.abspath(sys.argv[0])
+            
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
+        key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
+        if enabled:
+            winreg.SetValueEx(key, "REYDM_Chat", 0, winreg.REG_SZ, f'"{path}" --background')
+        else:
+            try:
+                winreg.DeleteValue(key, "REYDM_Chat")
+            except FileNotFoundError:
+                pass
+        winreg.CloseKey(key)
+    except Exception as e:
+        print(f"Error updating startup registry: {e}")
+
+class ReydmInstallerDialog(QDialog):
+    def __init__(self):
+        super().__init__(None)
+        self.setWindowTitle("REYDM Chat Setup")
+        self.setWindowFlags(
+            Qt.WindowType.Window | 
+            Qt.WindowType.CustomizeWindowHint | 
+            Qt.WindowType.WindowTitleHint | 
+            Qt.WindowType.WindowCloseButtonHint
+        )
+        self.resize(450, 250)
+        self.choice = None
+        
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
+        
+        title = QLabel("Install REYDM Secure Chat?")
+        title.setStyleSheet("color: #00adb5; font-size: 20px; font-weight: bold;")
+        
+        desc = QLabel(
+            "Would you like to install REYDM Secure Chat on this system?\n\n"
+            "This will:\n"
+            " • Copy the application to your local programs folder\n"
+            " • Create Desktop and Start Menu shortcuts\n"
+            " • Allow the app to run in the background for instant notifications"
+        )
+        desc.setStyleSheet("color: #d1d1d6; font-size: 13px; line-height: 1.4;")
+        desc.setWordWrap(True)
+        
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
+        
+        install_btn = QPushButton("Install (Recommended)")
+        install_btn.setStyleSheet("""
+            background-color: #00adb5;
+            color: white;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        install_btn.clicked.connect(self.choose_install)
+        
+        portable_btn = QPushButton("Run Portable")
+        portable_btn.setStyleSheet("""
+            background-color: #2d2d3a;
+            color: #d1d1d6;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        portable_btn.clicked.connect(self.choose_portable)
+        
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            background-color: transparent;
+            color: #888899;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        cancel_btn.clicked.connect(self.choose_cancel)
+        
+        btn_layout.addWidget(install_btn)
+        btn_layout.addWidget(portable_btn)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addWidget(title)
+        layout.addWidget(desc)
+        layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a24;
+                border: 1px solid #2d2d3a;
+            }
+            QLabel {
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+        """)
+        
+    def choose_install(self):
+        self.choice = 'install'
+        self.accept()
+        
+    def choose_portable(self):
+        self.choice = 'portable'
+        self.accept()
+        
+    def choose_cancel(self):
+        self.choice = 'cancel'
+        self.reject()
+
+def handle_installation():
+    if not getattr(sys, 'frozen', False):
+        return True
+        
+    install_dir = get_install_dir()
+    current_exe_dir = os.path.dirname(os.path.abspath(sys.executable))
+    
+    if "--portable" in sys.argv:
+        return True
+        
+    if os.path.abspath(current_exe_dir).lower() == os.path.abspath(install_dir).lower():
+        set_startup(True)
+        return True
+        
+    dialog = ReydmInstallerDialog()
+    dialog.exec()
+    
+    if dialog.choice == 'install':
+        try:
+            os.makedirs(install_dir, exist_ok=True)
+            installed_exe = os.path.join(install_dir, "REYDM_Chat.exe")
+            shutil.copy2(sys.executable, installed_exe)
+            
+            config_name = "server_config.txt"
+            current_config = os.path.join(current_exe_dir, config_name)
+            if os.path.exists(current_config):
+                shutil.copy2(current_config, os.path.join(install_dir, config_name))
+                
+            desktop_lnk = os.path.join(os.path.expanduser("~\\Desktop"), "REYDM Chat.lnk")
+            start_menu_dir = os.path.join(os.getenv("APPDATA"), "Microsoft\\Windows\\Start Menu\\Programs")
+            start_menu_lnk = os.path.join(start_menu_dir, "REYDM Chat.lnk")
+            
+            create_shortcut(installed_exe, desktop_lnk)
+            create_shortcut(installed_exe, start_menu_lnk)
+            
+            set_startup(True)
+            
+            QMessageBox.information(
+                None,
+                "Installation Successful",
+                "REYDM Secure Chat has been installed successfully!\n\n"
+                "Shortcuts have been added to your Desktop and Start Menu.\n"
+                "The application will now start.",
+                QMessageBox.StandardButton.Ok
+            )
+            
+            subprocess.Popen([installed_exe])
+            return False
+        except Exception as e:
+            QMessageBox.critical(
+                None,
+                "Installation Error",
+                f"An error occurred during installation:\n{e}\n\nRunning in portable mode instead.",
+                QMessageBox.StandardButton.Ok
+            )
+            return True
+    elif dialog.choice == 'portable':
+        return True
+    else:
+        sys.exit(0)
 
 def load_config():
     """Load configuration from server_config.txt in the executable's folder."""
@@ -445,13 +652,35 @@ class ReydmChatDesktop(QMainWindow):
         # Connect load finished signal to check for connection failures
         self.browser.loadFinished.connect(self.handle_load_finished)
         
-        # Load the server URL
+        # Load the server URL asynchronously to allow the window frame to show up instantly
         if "YOUR-ONLINE-SERVER" in target_url:
-            self.show_config_error()
+            QTimer.singleShot(0, self.show_config_error)
         else:
-            self.browser.setUrl(QUrl(target_url))
+            QTimer.singleShot(0, lambda: self.browser.setUrl(QUrl(target_url)))
             
         layout.addWidget(self.browser)
+
+        # Setup System Tray Icon
+        self.really_quit = False
+        self.tray_icon = QSystemTrayIcon(self)
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+            
+        tray_menu = QMenu()
+        show_action = QAction("Show REYDM Chat", self)
+        show_action.triggered.connect(self.show_normal)
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.quit_application)
+        
+        tray_menu.addAction(show_action)
+        tray_menu.addSeparator()
+        tray_menu.addAction(exit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        self.tray_icon.show()
         
         # Connect download handler
         self.profile.downloadRequested.connect(self.handle_download_requested)
@@ -462,14 +691,18 @@ class ReydmChatDesktop(QMainWindow):
         self.cookies[name] = value
         
     def handle_load_finished(self, success):
-        """If the connection to the online server fails, show a beautiful user-friendly setup guide after 3 retries."""
+        """If the connection to the server fails, retry connection. For local server, we do rapid checks (500ms) up to 12 times."""
         if success:
             self.load_attempts = 0
         else:
             self.load_attempts += 1
-            if self.load_attempts < 3:
-                print(f"Server load failed. Retrying connection to server (Attempt {self.load_attempts + 1} of 3) in 5 seconds...")
-                QTimer.singleShot(5000, lambda: self.browser.setUrl(QUrl(self.target_url)))
+            run_local = load_config()["run_local_server"].lower() == "true"
+            max_attempts = 12 if run_local else 3
+            retry_delay = 500 if run_local else 5000
+            
+            if self.load_attempts < max_attempts:
+                print(f"Server load failed. Retrying connection (Attempt {self.load_attempts + 1} of {max_attempts}) in {retry_delay}ms...")
+                QTimer.singleShot(retry_delay, lambda: self.browser.setUrl(QUrl(self.target_url)))
             else:
                 self.show_config_error()
             
@@ -633,7 +866,79 @@ class ReydmChatDesktop(QMainWindow):
         js_code = f"if (window.sendReplyFromSystem) {{ window.sendReplyFromSystem('{conversation_id}', '{escaped_text}'); }}"
         self.browser.page().runJavaScript(js_code)
 
+    def show_normal(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
+
+    def quit_application(self):
+        self.really_quit = True
+        QApplication.quit()
+
+    def on_tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show_normal()
+
+    def closeEvent(self, event):
+        if not self.really_quit:
+            event.ignore()
+            self.hide()
+            self.tray_icon.showMessage(
+                "REYDM Chat",
+                "Application is running in the background.",
+                QSystemTrayIcon.MessageIcon.Information,
+                2000
+            )
+        else:
+            super().closeEvent(event)
+
 if __name__ == "__main__":
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+    )
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    
+    # ─── SINGLE INSTANCE CHECK ───────────────────────────────────────
+    socket_name = "reydm_chat_single_instance_socket"
+    socket = QLocalSocket()
+    socket.connectToServer(socket_name)
+    if socket.waitForConnected(500):
+        # Already running! Send command to restore window
+        socket.write(b"show")
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        sys.exit(0)
+        
+    # Start local server to listen for future launch attempts
+    local_server = QLocalServer()
+    local_server.removeServer(socket_name) # Clean up dead sockets from crashes
+    
+    def handle_new_instance():
+        client_socket = local_server.nextPendingConnection()
+        if client_socket:
+            client_socket.readyRead.connect(lambda: handle_instance_message(client_socket))
+            
+    def handle_instance_message(client_socket):
+        data = client_socket.readAll().data()
+        if data == b"show":
+            active_client = globals().get('client')
+            if active_client:
+                active_client.show_normal()
+        client_socket.disconnectFromServer()
+        
+    local_server.newConnection.connect(handle_new_instance)
+    if not local_server.listen(socket_name):
+        print("Warning: Could not start single instance local server listener.")
+    # ─────────────────────────────────────────────────────────────────
+
+    # Run installer check
+    if not handle_installation():
+        sys.exit(0)
+        
     # Load configuration
     config = load_config()
     target_url = config["server_url"]
@@ -657,15 +962,14 @@ if __name__ == "__main__":
         backend_thread = threading.Thread(target=run_server, daemon=True)
         backend_thread.start()
         
-        # Give the backend server a moment to initialize and start listening
-        time.sleep(2.0)
+        # Give the backend server a tiny moment to initialize without blocking GUI startup
+        time.sleep(0.1)
 
-    QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
-    )
-    app = QApplication(sys.argv)
     client = ReydmChatDesktop(target_url)
-    client.show()
     
-    # Run the desktop app (exiting will terminate the process instantly)
+    # If starting in background (e.g., automatically on Windows startup), do not show window
+    if "--background" not in sys.argv:
+        client.show()
+    
+    # Run the desktop app
     sys.exit(app.exec())
