@@ -1,5 +1,7 @@
 # REYDM Secure Chat Configuration
 # To connect to a public online server (Render, PythonAnywhere, etc.), set run_local_server to false
 run_local_server=false
+# Disable hardware acceleration to prevent blinking/flickering on older or integrated GPUs
+disable_gpu=true
 # Replace the URL below with your online hosted server URL
 server_url=https://rey-chat.onrender.com

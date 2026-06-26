@@ -240,7 +240,8 @@ def load_config():
     # Default settings (defaults to empty so the custom Setup Screen triggers on first run)
     default_config = {
         "server_url": "https://YOUR-ONLINE-SERVER.onrender.com",
-        "run_local_server": "false"
+        "run_local_server": "false",
+        "disable_gpu": "true"
     }
     
     if not os.path.exists(config_path):
@@ -249,6 +250,8 @@ def load_config():
                 f.write("# REYDM Secure Chat Configuration\n")
                 f.write("# To connect to a public online server (Render, PythonAnywhere, etc.), set run_local_server to false\n")
                 f.write("run_local_server=false\n")
+                f.write("# Disable hardware acceleration to prevent blinking/flickering on older or integrated GPUs\n")
+                f.write("disable_gpu=true\n")
                 f.write("# Replace the URL below with your online hosted server URL\n")
                 f.write("server_url=https://YOUR-ONLINE-SERVER.onrender.com\n")
         except Exception:
@@ -269,7 +272,8 @@ def load_config():
         
     return {
         "server_url": config.get("server_url", "https://YOUR-ONLINE-SERVER.onrender.com"),
-        "run_local_server": config.get("run_local_server", "false")
+        "run_local_server": config.get("run_local_server", "false"),
+        "disable_gpu": config.get("disable_gpu", "true")
     }
 
 class ReydmOSNotification(QDialog):
@@ -635,10 +639,14 @@ class ReydmChatDesktop(QMainWindow):
         self.cookies = {}
         self.profile.cookieStore().cookieAdded.connect(self.handle_cookie_added)
         
-        # Enable Hardware Acceleration and High FPS WebGL
+        # Load config to determine GPU state
+        config = load_config()
+        disable_gpu = config.get("disable_gpu", "true").lower() == "true"
+
+        # Enable Hardware Acceleration and WebGL only if GPU is NOT disabled
         settings = self.profile.settings()
-        settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, True)
-        settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, True)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, not disable_gpu)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, not disable_gpu)
         settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
         settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
         
@@ -648,6 +656,9 @@ class ReydmChatDesktop(QMainWindow):
         # Use custom page for URL interception and notification bridge
         custom_page = ReydmChatPage(self.profile, self.browser, self, target_url)
         self.browser.setPage(custom_page)
+        
+        # Set dark background color to prevent white flashes during loading
+        custom_page.setBackgroundColor(QColor(18, 18, 18))
         
         # Connect load finished signal to check for connection failures
         self.browser.loadFinished.connect(self.handle_load_finished)
@@ -886,18 +897,40 @@ class ReydmChatDesktop(QMainWindow):
         if not self.really_quit:
             event.ignore()
             self.hide()
-            self.tray_icon.showMessage(
-                "REYDM Chat",
-                "Application is running in the background.",
-                QSystemTrayIcon.MessageIcon.Information,
-                2000
-            )
         else:
             super().closeEvent(event)
 
 if __name__ == "__main__":
+    # Load configuration first to check for GPU disable option
+    config = load_config()
+    disable_gpu = config.get("disable_gpu", "true").lower() == "true"
+    
+    # Configure Chromium/QtWebEngine flags
+    flags = ["--ignore-gpu-blocklist", "--no-sandbox"]
+    if disable_gpu:
+        flags.append("--disable-gpu")
+        flags.append("--disable-gpu-compositing")
+        flags.append("--disable-gpu-rasterization")
+        flags.append("--disable-accelerated-2d-canvas")
+        flags.append("--disable-accelerated-video-decode")
+        flags.append("--disable-gpu-sandbox")
+        flags.append("--disable-webgl")
+        flags.append("--disable-3d-apis")
+        flags.append("--disable-direct-composition")
+        flags.append("--use-gl=swiftshader")
+        flags.append("--use-angle=warp")
+        os.environ["QT_OPENGL"] = "software"
+        os.environ["QT_QUICK_BACKEND"] = "software"
+        os.environ["QTWEBENGINE_DISABLE_GPU"] = "1"
+        os.environ["QT_ANGLE_PLATFORM"] = "warp"
+    else:
+        flags.append("--enable-gpu-rasterization")
+        
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(flags)
+    
+    # Use Round policy instead of PassThrough to prevent layout/resize feedback loops (flickering/blinking)
     QApplication.setHighDpiScaleFactorRoundingPolicy(
-        Qt.HighDpiScaleFactorRoundingPolicy.PassThrough
+        Qt.HighDpiScaleFactorRoundingPolicy.Round
     )
     app = QApplication(sys.argv)
     app.setQuitOnLastWindowClosed(False)

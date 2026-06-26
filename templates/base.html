@@ -36,11 +36,19 @@
             --link-theirs: #38bdf8; /* Vibrant sky blue for contrast on dark theirs bubbles */
             --link-theirs-hover: #7dd3fc;
             
+            /* Dynamic Brand Gradient Palette (Dark Theme) */
+            --gradient-brand: linear-gradient(135deg, #00ADB5 0%, #3F72AF 50%, #903775 100%);
+            --gradient-mine: linear-gradient(135deg, #00ADB5 0%, #007580 100%);
+            --gradient-theirs: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            --gradient-active: linear-gradient(90deg, rgba(0, 173, 181, 0.18) 0%, rgba(0, 173, 181, 0.03) 100%);
+            --gradient-header: linear-gradient(180deg, rgba(30, 41, 59, 0.95) 0%, rgba(15, 23, 42, 0.95) 100%);
+            --gradient-badge: linear-gradient(135deg, #00ADB5 0%, #903775 100%);
+            
             /* Dynamic Brand Gradient */
             {% if global_theme.is_gradient and global_theme.gradient_style %}
             --primary-gradient: {{ global_theme.gradient_style }};
             {% else %}
-            --primary-gradient: linear-gradient(135deg, var(--primary), var(--accent));
+            --primary-gradient: var(--gradient-brand);
             {% endif %}
         }
 
@@ -49,6 +57,8 @@
             --bg-color: {{ global_theme.bg_light }};
             --panel-bg: {{ global_theme.panel_light }};
             --border-color: {{ global_theme.border_light }};
+            --text-primary: #0f172a;
+            --text-secondary: #475569;
             --text-main: #0f172a; /* Slate 900 for modern elegant look */
             --text-muted: #64748b; /* Slate 500 for secondary text */
             --primary: {{ global_theme.primary }};
@@ -62,8 +72,6 @@
             /* Aliases used by chat.html */
             --glass-bg: {{ global_theme.panel_light }};
             --glass-border: {{ global_theme.border_light }};
-            --text-primary: #0f172a;
-            --text-secondary: #475569;
 
             /* High-Contrast Bubble and Link Colors for Light Theme */
             --bubble-mine-text: #ffffff;
@@ -72,6 +80,16 @@
             --link-mine-hover: #fef08a;
             --link-theirs: #1d4ed8; /* Vibrant deep royal blue for high legibility on light theirs bubbles */
             --link-theirs-hover: #1e40af;
+            
+            /* Dynamic Brand Gradient Palette (Light Theme) */
+            --gradient-brand: linear-gradient(135deg, #0099a8 0%, #3f72af 50%, #7c2d62 100%);
+            --gradient-mine: linear-gradient(135deg, #0099a8 0%, #00636d 100%);
+            --gradient-theirs: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+            --gradient-active: linear-gradient(90deg, rgba(0, 153, 168, 0.1) 0%, rgba(0, 153, 168, 0.02) 100%);
+            --gradient-header: linear-gradient(180deg, rgba(255, 255, 255, 0.95) 0%, rgba(248, 250, 252, 0.95) 100%);
+            --gradient-badge: linear-gradient(135deg, #0099a8 0%, #7c2d62 100%);
+            
+            --primary-gradient: var(--gradient-brand);
         }
         
         * {
@@ -81,10 +99,19 @@
             font-family: 'Inter', sans-serif;
         }
 
+        @keyframes gradientAnimation {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+
         body {
             background-color: var(--bg-color);
-            background-image: radial-gradient(circle at top right, rgba(14, 165, 233, 0.12), transparent 40%),
-                              radial-gradient(circle at bottom left, rgba(56, 189, 248, 0.08), transparent 40%);
+            background-image: linear-gradient(135deg, rgba(0, 173, 181, 0.08) 0%, rgba(144, 55, 117, 0.06) 50%, rgba(63, 114, 175, 0.08) 100%),
+                              radial-gradient(circle at top right, rgba(0, 173, 181, 0.15), transparent 45%),
+                              radial-gradient(circle at bottom left, rgba(144, 55, 117, 0.1), transparent 45%);
+            background-size: 200% 200%;
+            animation: gradientAnimation 20s ease infinite;
             color: var(--text-main);
             height: 100vh;
             overflow: hidden;

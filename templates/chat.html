@@ -6,6 +6,9 @@
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
 <script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
 <style>
+    .mobile-whatsapp-header {
+        display: none;
+    }
     .app-container {
         width: 100vw;
         max-width: none;
@@ -189,15 +192,17 @@
     .msg-file {
         display: flex;
         align-items: center;
-        gap: 12px;
+        gap: 10px;
         background: rgba(0,0,0,0.2);
         padding: 10px;
         border-radius: 8px;
         margin-top: 5px;
+        min-width: 0;
     }
     .msg-file-icon {
         font-size: 24px;
         color: var(--accent);
+        flex-shrink: 0;
     }
     .msg-file-name {
         font-size: 13px;
@@ -205,6 +210,8 @@
         overflow: hidden;
         text-overflow: ellipsis;
         white-space: nowrap;
+        flex: 1;
+        min-width: 0;
     }
     .msg-file-btn {
         background: var(--primary);
@@ -213,6 +220,12 @@
         padding: 5px 10px;
         border-radius: 4px;
         font-size: 12px;
+        white-space: nowrap;
+        flex-shrink: 0;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
     }
 
     /* Input Area */
@@ -1161,6 +1174,7 @@
         bottom: 0 !important;
         z-index: 10 !important;
         display: flex !important;
+        flex-direction: column !important;
         transform: translateX(0) !important;
         will-change: transform;
     }
@@ -1280,12 +1294,173 @@
         -webkit-overflow-scrolling: touch;
     }
 
-    /* Toggle sidebar header back button & hide vertical app bar on mobile when non-chats tab active */
+    /* Toggle sidebar header back button on mobile when non-chats tab active */
     .app-container.non-chats-active #sidebarBackBtn {
         display: inline-flex !important;
     }
-    .app-container.non-chats-active .teams-app-bar {
+
+    /* Hide the original Teams app bar on mobile completely */
+    .teams-app-bar {
         display: none !important;
+    }
+
+    /* Style mobile WhatsApp-style header to render horizontally at the top of the sidebar */
+    .mobile-whatsapp-header {
+        display: flex !important;
+        flex-direction: column !important;
+        background: #101d25 !important; /* Premium WhatsApp dark theme header color */
+        border-bottom: 1px solid rgba(255, 255, 255, 0.05) !important;
+        width: 100% !important;
+        z-index: 100 !important;
+    }
+    
+    .mobile-wh-top-row {
+        display: flex !important;
+        justify-content: space-between !important;
+        align-items: center !important;
+        padding: 12px 16px !important;
+        height: 56px !important;
+        box-sizing: border-box !important;
+    }
+    
+    .mobile-wh-title {
+        color: #ffffff !important;
+        font-size: 19px !important;
+        font-weight: 700 !important;
+        letter-spacing: 0.2px !important;
+    }
+    
+    .mobile-wh-actions {
+        display: flex !important;
+        align-items: center !important;
+        gap: 16px !important;
+        position: relative !important;
+    }
+    
+    .mobile-wh-action-btn {
+        background: transparent !important;
+        border: none !important;
+        color: #a0a7ac !important;
+        font-size: 18px !important;
+        cursor: pointer !important;
+        padding: 4px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        outline: none !important;
+    }
+    
+    .mobile-wh-action-btn:active {
+        color: #ffffff !important;
+    }
+    
+    .mobile-wh-avatar-container {
+        position: relative !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+    }
+    
+    .mobile-wh-avatar {
+        width: 32px !important;
+        height: 32px !important;
+        border-radius: 50% !important;
+        background: var(--primary) !important;
+        color: white !important;
+        font-size: 13px !important;
+        font-weight: bold !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+    }
+    
+    .mobile-wh-dropdown {
+        position: absolute !important;
+        top: 45px !important;
+        right: 0 !important;
+        background: #233138 !important; /* Dark slate dropdown to match WhatsApp style */
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 8px !important;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.5) !important;
+        min-width: 150px !important;
+        z-index: 200 !important;
+        display: none;
+        flex-direction: column !important;
+        padding: 5px 0 !important;
+    }
+    
+    .mobile-wh-dropdown-item {
+        padding: 10px 16px !important;
+        color: #e9edef !important;
+        font-size: 14px !important;
+        cursor: pointer !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+    
+    .mobile-wh-dropdown-item:active {
+        background: rgba(255,255,255,0.05) !important;
+    }
+    
+    .mobile-wh-dropdown-item-link {
+        padding: 10px 16px !important;
+        color: #e9edef !important;
+        font-size: 14px !important;
+        text-decoration: none !important;
+        display: flex !important;
+        align-items: center !important;
+        gap: 10px !important;
+    }
+    
+    .mobile-wh-dropdown-item-link:active {
+        background: rgba(255,255,255,0.05) !important;
+    }
+    
+    .mobile-wh-tabs {
+        display: flex !important;
+        width: 100% !important;
+        height: 48px !important;
+        box-sizing: border-box !important;
+    }
+    
+    .mobile-wh-tab {
+        flex: 1 !important;
+        display: flex !important;
+        flex-direction: column !important;
+        align-items: center !important;
+        justify-content: center !important;
+        gap: 2px !important;
+        color: #a0a7ac !important;
+        font-size: 12px !important;
+        font-weight: 700 !important;
+        cursor: pointer !important;
+        position: relative !important;
+        padding-top: 4px !important;
+        transition: color 0.2s !important;
+    }
+    
+    .mobile-wh-tab i {
+        font-size: 15px !important;
+    }
+    
+    .mobile-wh-tab span {
+        font-size: 10px !important;
+        letter-spacing: 0.5px !important;
+    }
+    
+    .mobile-wh-tab.active {
+        color: var(--primary) !important; /* WhatsApp Green highlight */
+    }
+    
+    .mobile-wh-tab.active::after {
+        content: "" !important;
+        position: absolute !important;
+        bottom: 0 !important;
+        left: 0 !important;
+        right: 0 !important;
+        height: 3px !important;
+        background-color: var(--primary) !important; /* WhatsApp active indicator line */
     }
     
     /* Make info panels full-screen drawers on mobile */
@@ -1410,9 +1585,89 @@
 {% endblock %}
 
 {% block content %}
+<!-- Fake inputs to absorb chromium browser autofill/credentials manager -->
+<div style="position: absolute; overflow: hidden; width: 0px; height: 0px; opacity: 0; pointer-events: none;">
+    <input type="text" name="fake_username_autofill_prevent" value="" tabindex="-1" autocomplete="new-password">
+    <input type="password" name="fake_password_autofill_prevent" value="" tabindex="-1" autocomplete="new-password">
+</div>
+
 <div class="glass-panel app-container">
     <!-- Sidebar -->
     <div class="sidebar">
+        <!-- Mobile WhatsApp Header -->
+        <div class="mobile-whatsapp-header">
+            <div class="mobile-wh-top-row">
+                <span class="mobile-wh-title">REYDM Chat</span>
+                <div class="mobile-wh-actions">
+                    <!-- Search icon button -->
+                    <button class="mobile-wh-action-btn" onclick="focusMobileSearch()" title="Search">
+                        <i class="fa-solid fa-magnifying-glass"></i>
+                    </button>
+                    <!-- User avatar with status dot -->
+                    <div class="mobile-wh-avatar-container" onclick="toggleMobileStatusDropdown(event)">
+                        <div class="mobile-wh-avatar">{{ current_user_name[0]|upper }}</div>
+                        <span id="mobileMyStatusDot" class="teams-status-dot" style="background: #25d366; width: 10px; height: 10px; bottom: 0; right: 0;"></span>
+                        
+                        <!-- Mobile Status Dropdown -->
+                        <div id="mobileStatusDropdownMenu" class="teams-status-dropdown" onclick="event.stopPropagation()" style="display: none; top: 45px; left: 0; right: auto; min-width: 140px;">
+                            <div class="teams-status-dropdown-item" onclick="selectMobileStatus('online')">
+                                🟢 Online
+                            </div>
+                            <div class="teams-status-dropdown-item" onclick="selectMobileStatus('away')">
+                                🟡 Away
+                            </div>
+                            <div class="teams-status-dropdown-item" onclick="selectMobileStatus('offline')">
+                                🔴 Offline
+                            </div>
+                        </div>
+                    </div>
+                    <!-- Three dots menu button -->
+                    <button class="mobile-wh-action-btn" onclick="toggleMobileMenu(event)" title="More options">
+                        <i class="fa-solid fa-ellipsis-vertical"></i>
+                    </button>
+                    
+                    <!-- Mobile Menu Dropdown -->
+                    <div id="mobileMenuDropdown" class="mobile-wh-dropdown" style="display: none;">
+                        <div class="mobile-wh-dropdown-item" onclick="openCreateGroupModal()">
+                            <i class="fa-solid fa-users-gear"></i> New Group
+                        </div>
+                        <div class="mobile-wh-dropdown-item" onclick="switchTab('settings')">
+                            <i class="fa-solid fa-user-gear"></i> Settings
+                        </div>
+                        <div class="mobile-wh-dropdown-item" onclick="toggleTheme()">
+                            <i class="fa-solid fa-circle-half-stroke"></i> Toggle Theme
+                        </div>
+                        {% if role == 'admin' %}
+                        <a href="/chat_admin" class="mobile-wh-dropdown-item-link">
+                            <i class="fa-solid fa-shield-halved"></i> Admin Panel
+                        </a>
+                        {% endif %}
+                        <a href="/logout" class="mobile-wh-dropdown-item-link" style="border-top: 1px solid rgba(255,255,255,0.08); margin-top: 5px; padding-top: 10px; color: #ef4444 !important;">
+                            <i class="fa-solid fa-right-from-bracket"></i> Logout
+                        </a>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="mobile-wh-tabs">
+                <div class="mobile-wh-tab active" id="mobileTabChats" onclick="switchTab('chats')">
+                    <i class="fa-solid fa-message"></i>
+                    <span>CHATS</span>
+                    <span class="tab-badge" id="mobileChatsBadge" style="display: none; position: absolute; top: 4px; right: 20%; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 4px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #101d25;"></span>
+                </div>
+                <div class="mobile-wh-tab" id="mobileTabGroups" onclick="switchTab('groups')">
+                    <i class="fa-solid fa-users"></i>
+                    <span>GROUPS</span>
+                    <span class="tab-badge" id="mobileGroupsBadge" style="display: none; position: absolute; top: 4px; right: 20%; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 4px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #101d25;"></span>
+                </div>
+                <div class="mobile-wh-tab" id="mobileTabAvailable" onclick="switchTab('available')">
+                    <i class="fa-solid fa-circle-check"></i>
+                    <span>STATUS</span>
+                    <span class="tab-badge" id="mobileAvailableBadge" style="display: none; position: absolute; top: 4px; right: 20%; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 4px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #101d25;"></span>
+                </div>
+            </div>
+        </div>
+
         <!-- Far Left Teams vertical App Bar -->
         <div class="teams-app-bar">
             <div class="teams-app-bar-top">
@@ -1421,7 +1676,7 @@
                     <span id="myStatusDot" class="teams-status-dot" style="background: #25d366;"></span>
                     
                     <!-- Availability Status Dropdown Menu -->
-                    <div id="statusDropdownMenu" class="teams-status-dropdown">
+                    <div id="statusDropdownMenu" class="teams-status-dropdown" onclick="event.stopPropagation()">
                         <div class="teams-status-dropdown-item" onclick="selectTeamsStatus('online')">
                             🟢 Online
                         </div>
@@ -1439,12 +1694,15 @@
                 
                 <button class="teams-nav-btn active" id="teamsBtnChats" onclick="switchTab('chats')" title="Chats">
                     <i class="fa-solid fa-message"></i>
+                    <span class="tab-badge" id="desktopChatsBadge" style="display: none; position: absolute; top: 2px; right: 2px; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 3px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #1a1a24;"></span>
                 </button>
                 <button class="teams-nav-btn" id="teamsBtnGroups" onclick="switchTab('groups')" title="Groups">
                     <i class="fa-solid fa-users"></i>
+                    <span class="tab-badge" id="desktopGroupsBadge" style="display: none; position: absolute; top: 2px; right: 2px; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 3px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #1a1a24;"></span>
                 </button>
                 <button class="teams-nav-btn" id="teamsBtnAvailable" onclick="switchTab('available')" title="Available Status">
                     <i class="fa-solid fa-circle-check"></i>
+                    <span class="tab-badge" id="desktopAvailableBadge" style="display: none; position: absolute; top: 2px; right: 2px; background: var(--primary); color: white; border-radius: 50%; font-size: 9px; min-width: 16px; height: 16px; padding: 0 3px; align-items: center; justify-content: center; font-weight: bold; border: 1.5px solid #1a1a24;"></span>
                 </button>
 <button class="teams-nav-btn" id="teamsBtnSettings" onclick="switchTab('settings')" title="Settings">
     <i class="fa-solid fa-gear"></i>
@@ -1476,7 +1734,7 @@
             <!-- Sidebar Search Bar -->
             <div style="padding: 10px 20px; border-bottom: 1px solid var(--border-color); background: rgba(0,0,0,0.1); display: flex; align-items: center; gap: 10px;">
                 <i class="fa-solid fa-search" style="color: var(--text-muted); font-size: 14px;"></i>
-                <input type="text" id="sidebarSearch" placeholder="Search or start new chat (Ctrl+Shift+F)..." style="flex:1; background: transparent; border: none; color: white; outline: none; font-size: 13.5px; font-family: inherit;">
+                <input type="text" id="sidebarSearch" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search or start new chat (Ctrl+Shift+F)..." style="flex:1; background: transparent; border: none; color: white; outline: none; font-size: 13.5px; font-family: inherit;">
             </div>
         <div class="user-list" id="userList" style="flex: 1; overflow-y: auto;">
             <!-- Populated by JS -->
@@ -1543,14 +1801,20 @@
 
         <!-- Change Password Option -->
         <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--glass-border); padding-top: 15px; margin-top: 5px;">
-            <span class="settings-field-label" style="margin: 0;">Change Password</span>
-            <div style="display: flex; flex-direction: column; gap: 8px;">
-                <input id="settingsNewPassword" type="password" placeholder="New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6">
-                <input id="settingsConfirmPassword" type="password" placeholder="Confirm New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6">
-            </div>
-            <button onclick="changePasswordFromSettings()" class="teams-btn" style="background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; outline: none;">
-                <i class="fa-solid fa-key"></i> Update Password
-            </button>
+            <form id="settingsPasswordForm" autocomplete="off" onsubmit="event.preventDefault();" style="display: flex; flex-direction: column; gap: 10px; margin: 0; padding: 0;">
+                <!-- Fake inputs inside settings form to fully capture autofill scopes -->
+                <input type="text" name="settings_fake_username" style="display: none;" tabindex="-1" autocomplete="new-password">
+                <input type="password" name="settings_fake_password" style="display: none;" tabindex="-1" autocomplete="new-password">
+                
+                <span class="settings-field-label" style="margin: 0;">Change Password</span>
+                <div style="display: flex; flex-direction: column; gap: 8px;">
+                    <input id="settingsNewPassword" type="password" placeholder="New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6" autocomplete="new-password">
+                    <input id="settingsConfirmPassword" type="password" placeholder="Confirm New Password" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;" minlength="6" autocomplete="new-password">
+                </div>
+                <button onclick="changePasswordFromSettings()" class="teams-btn" style="background: var(--accent); color: white; border: none; padding: 10px; border-radius: 8px; font-weight: bold; cursor: pointer; transition: all 0.2s; font-size: 13px; width: 100%; display: flex; align-items: center; justify-content: center; gap: 8px; outline: none;">
+                    <i class="fa-solid fa-key"></i> Update Password
+                </button>
+            </form>
         </div>
 
         <!-- Storage Clear Option -->
@@ -1624,7 +1888,7 @@
         <!-- Chat Message Search Panel -->
         <div id="chatSearchPanel" style="display: none; padding: 10px 20px; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border-color); align-items: center; gap: 10px; z-index: 10; box-sizing: border-box; width: 100%;">
             <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 14px;"></i>
-            <input type="text" id="chatSearchInput" placeholder="Search message text (Ctrl+F)..." style="flex:1; background: transparent; border: none; color: white; outline: none; font-size: 13.5px; font-family: inherit;">
+            <input type="text" id="chatSearchInput" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search message text (Ctrl+F)..." style="flex:1; background: transparent; border: none; color: white; outline: none; font-size: 13.5px; font-family: inherit;">
             <i class="fa-solid fa-times" onclick="toggleChatSearch()" style="cursor: pointer; color: var(--text-muted);" title="Close Search"></i>
         </div>
 
@@ -1739,7 +2003,7 @@
 <div id="createGroupModal" class="modal" style="display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 2000; align-items: center; justify-content: center;">
     <div class="modal-content" style="width: 400px; max-width: 90%;">
         <h3 style="margin-top: 0; color: white;">Create New Group</h3>
-        <input type="text" id="groupNameInp" placeholder="Group Name" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box;">
+        <input type="text" id="groupNameInp" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Group Name" style="width: 100%; padding: 10px; margin-bottom: 15px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box;">
         <div style="margin-bottom: 10px; color: var(--text-muted); font-size: 13px;">Select Members:</div>
         <div id="groupMembersCheckboxes" style="max-height: 200px; overflow-y: auto; background: rgba(0,0,0,0.2); padding: 10px; border-radius: 6px; margin-bottom: 15px; display: flex; flex-direction: column; gap: 8px;">
             <!-- Populated by JS -->
@@ -1807,6 +2071,7 @@
     <div class="context-menu-item" id="ctxPrivateReply" style="display:none" onclick="privateReply()"><i class="fa-solid fa-comment-dots"></i> Reply Privately</div>
     <div class="context-menu-item" id="ctxForward"><i class="fa-solid fa-share"></i> Forward</div>
     <div class="context-menu-item" id="ctxPin"><i class="fa-solid fa-thumbtack"></i> Pin/Unpin</div>
+    <div class="context-menu-item" id="ctxCopy"><i class="fa-solid fa-copy"></i> Copy Message</div>
     <div class="context-menu-item" id="ctxEdit"><i class="fa-solid fa-pen"></i> Edit Message</div>
     <div class="context-menu-item" id="ctxInfo"><i class="fa-solid fa-circle-info"></i> Message Info</div>
     <div class="context-menu-item" id="ctxSelect"><i class="fa-solid fa-square-check"></i> Select Message</div>
@@ -1817,7 +2082,7 @@
 <div class="new-chat-modal" id="newChatModal">
     <div class="new-chat-modal-body">
         <h3>New Chat <span style="float:right;cursor:pointer;font-size:20px" onclick="closeNewChatModal()">&times;</span></h3>
-        <input type="text" id="newChatSearch" placeholder="Search users..." oninput="searchNewChatUsers()">
+        <input type="text" id="newChatSearch" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search users..." oninput="searchNewChatUsers()">
         <div id="newChatUserList"></div>
     </div>
 </div>
@@ -2015,6 +2280,9 @@ socket.on('user_status_changed', function(data) {
         if (typeof renderAvailableTab === 'function') {
             renderAvailableTab();
         }
+        if (typeof updateTabBadges === 'function') {
+            updateTabBadges();
+        }
         
         // Show notification toast for other users' status changes
         if (data.user_id != UID && data.full_name) {
@@ -2172,10 +2440,12 @@ socket.on('user_status_changed', function(data) {
     }
 
     let activeContextMsgId = null;
+    let activeContextMsgObj = null;
 
     function showContextMenu(x, y, msg) {
         const menu = document.getElementById('customContextMenu');
         activeContextMsgId = msg.id;
+        activeContextMsgObj = msg;
         
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
@@ -2200,6 +2470,7 @@ socket.on('user_status_changed', function(data) {
         document.getElementById('ctxPrivateReply').style.display = 'none';
         document.getElementById('ctxForward').style.display = isDeleted ? 'none' : 'flex';
         document.getElementById('ctxPin').style.display = isDeleted ? 'none' : 'flex';
+        document.getElementById('ctxCopy').style.display = isDeleted ? 'none' : 'flex';
         document.getElementById('ctxSelect').style.display = isDeleted ? 'none' : 'flex';
         document.getElementById('ctxDelete').style.display = 'flex';
         
@@ -2257,30 +2528,41 @@ socket.on('user_status_changed', function(data) {
 
     // Custom Context Menu Action Handlers
     document.getElementById('ctxReply').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) initReply(activeContextMsgId);
     });
 
     document.getElementById('ctxReact').addEventListener('click', (e) => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) showReactionPicker(e, activeContextMsgId, e.clientX, e.clientY);
     });
 
     document.getElementById('ctxForward').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) openForwardModal(activeContextMsgId);
     });
 
     document.getElementById('ctxPin').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) togglePin(activeContextMsgId);
     });
 
+    document.getElementById('ctxCopy').addEventListener('click', () => {
+        copyMsg();
+    });
+
     document.getElementById('ctxEdit').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) initEdit(activeContextMsgId);
     });
 
     document.getElementById('ctxDelete').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) deleteMsg(activeContextMsgId);
     });
 
     document.getElementById('ctxSelect').addEventListener('click', () => {
+        document.getElementById('customContextMenu').style.display = 'none';
         if (activeContextMsgId) {
             enableSelectionMode(activeContextMsgId);
         }
@@ -2291,11 +2573,70 @@ socket.on('user_status_changed', function(data) {
         if (activeContextMsgId) openMsgInfo(activeContextMsgId);
     });
 
+    function copyMsg() {
+        document.getElementById('customContextMenu').style.display = 'none';
+        const msg = activeContextMsgObj;
+        if (!msg) return;
+        
+        let textToCopy = "";
+        if (msg.message_type === 'text') {
+            textToCopy = msg.message_text || "";
+        } else {
+            const dispName = msg.file_name || msg.file_url || "";
+            textToCopy = dispName;
+        }
+        
+        if (!textToCopy) return;
+        
+        if (navigator.clipboard && navigator.clipboard.writeText) {
+            navigator.clipboard.writeText(textToCopy).then(() => {
+                showToast("Message copied to clipboard!", "success");
+            }).catch(err => {
+                console.error('Failed to copy: ', err);
+                fallbackCopyText(textToCopy);
+            });
+        } else {
+            fallbackCopyText(textToCopy);
+        }
+    }
+
+    function fallbackCopyText(textToCopy) {
+        try {
+            const textArea = document.createElement("textarea");
+            textArea.value = textToCopy;
+            textArea.style.position = "fixed";
+            textArea.style.left = "-9999px";
+            document.body.appendChild(textArea);
+            textArea.focus();
+            textArea.select();
+            const successful = document.execCommand('copy');
+            document.body.removeChild(textArea);
+            if (successful) {
+                showToast("Message copied to clipboard!", "success");
+            } else {
+                showToast("Failed to copy message", "error");
+            }
+        } catch (fallbackErr) {
+            console.error('Fallback copy failed: ', fallbackErr);
+            showToast("Failed to copy message", "error");
+        }
+    }
+
+    window.showFullMsg = function(btn) {
+        const parent = btn.parentElement;
+        if (!parent) return;
+        const hiddenPart = parent.querySelector('.msg-hidden-part');
+        if (hiddenPart) {
+            hiddenPart.style.display = 'inline';
+        }
+        btn.style.display = 'none';
+    };
+
     function openFileLocal(fileUrl) {
         if (!fileUrl) return;
-        // Intercepted by PyQt QWebEnginePage acceptNavigationRequest
+        // Intercepted by PyQt QWebEnginePage acceptNavigationRequest or Flutter WebView onNavigationRequest
         const openUrl = fileUrl.replace('/api/chat/download/', '/api/chat/open/');
-        if (window.navigator.userAgent.indexOf('QtWebEngine') !== -1) {
+        if (window.navigator.userAgent.indexOf('QtWebEngine') !== -1 || window.FlutterChannel !== undefined) {
             window.location.href = openUrl;
         } else {
             window.open(openUrl, '_blank');
@@ -2304,6 +2645,12 @@ socket.on('user_status_changed', function(data) {
 
     async function saveFileLocal(fileUrl, fileName) {
         if (!fileUrl) return;
+        
+        if (window.FlutterChannel !== undefined) {
+            // Direct navigation so that Flutter WebView's onNavigationRequest intercepts it
+            window.location.href = fileUrl;
+            return;
+        }
         
         // Ensure toast container exists
         let toastContainer = document.getElementById('toastContainer');
@@ -2652,6 +2999,16 @@ socket.on('user_status_changed', function(data) {
             safeText += `<span style="font-style: italic; font-size: 11px; opacity: 0.6; margin-left: 5px;" title="Edited">(edited)</span>`;
         }
 
+        // Apply "Read More" collapsing if safeText has > 15 lines
+        if (safeText) {
+            const textLines = safeText.split('\n');
+            if (textLines.length > 15) {
+                const visiblePart = textLines.slice(0, 15).join('\n');
+                const hiddenPart = textLines.slice(15).join('\n');
+                safeText = `<span class="collapsible-msg-container"><span class="msg-visible-part">${visiblePart}</span><span class="msg-hidden-part" style="display: none;">\n${hiddenPart}</span><a href="javascript:void(0)" class="read-more-btn" onclick="showFullMsg(this)" style="color: var(--primary); font-weight: 600; text-decoration: none; margin-left: 5px; cursor: pointer; display: inline-block;">... Read More</a></span>`;
+            }
+        }
+
         let replyHtml = '';
         if (msg.reply_to_id) {
             let rSnippet = msg.reply_type === 'file' ? 'Sent a file' : escapeHtml(msg.reply_text || '');
@@ -2975,6 +3332,9 @@ socket.on('user_status_changed', function(data) {
             new Notification(`New message from ${msg.sender_name}`, {
                 body: msg.message_type === 'file' ? 'Sent a file' : (msg.message_text || '')
             });
+        }
+        if (typeof updateTabBadges === 'function') {
+            updateTabBadges();
         }
     });
 
@@ -3414,6 +3774,14 @@ function switchTab(tab) {
     if (availBtn) availBtn.classList.toggle('active', tab === 'available');
     if (settingsBtn) settingsBtn.classList.toggle('active', tab === 'settings');
     
+    // Toggle active status for mobile top tabs
+    const mobileChatsTab = document.getElementById('mobileTabChats');
+    const mobileGroupsTab = document.getElementById('mobileTabGroups');
+    const mobileAvailTab = document.getElementById('mobileTabAvailable');
+    if (mobileChatsTab) mobileChatsTab.classList.toggle('active', tab === 'chats');
+    if (mobileGroupsTab) mobileGroupsTab.classList.toggle('active', tab === 'groups');
+    if (mobileAvailTab) mobileAvailTab.classList.toggle('active', tab === 'available');
+    
     const titleEl = document.getElementById('teamsPanelTitle');
     if (titleEl) {
         if (tab === 'chats') {
@@ -3719,6 +4087,16 @@ async function clearStorage() {
                 dot.style.backgroundColor = '#ffbc00';
             } else if (val === 'offline') {
                 dot.style.backgroundColor = '#8e8e93';
+            }
+        }
+        const dot2 = document.getElementById('mobileMyStatusDot');
+        if (dot2) {
+            if (val === 'online') {
+                dot2.style.backgroundColor = '#25d366';
+            } else if (val === 'away') {
+                dot2.style.backgroundColor = '#ffbc00';
+            } else if (val === 'offline') {
+                dot2.style.backgroundColor = '#8e8e93';
             }
         }
         
@@ -4801,6 +5179,12 @@ function updateSendBtnState() {
             const convos = await res.json();
             conversationsList = convos;
             
+            convos.forEach(c => {
+                if (unreadCounts[c.conversation_id] === undefined) {
+                    unreadCounts[c.conversation_id] = c.unread || 0;
+                }
+            });
+            
             const userListEl = document.getElementById('userList');
             const groupListEl = document.getElementById('groupList');
             if (!userListEl || !groupListEl) return;
@@ -4951,6 +5335,7 @@ function updateSendBtnState() {
             }
             otherGroups.forEach(c => renderConvItem(c, groupListEl));
             
+            updateTabBadges();
         } catch(e) {
             console.error('Error loading conversations:', e);
         }
@@ -5913,5 +6298,104 @@ function goBackToChatsList() {
         currentPartnerId = null;
     }
 }
+
+// Mobile WhatsApp-style header helper functions
+function toggleMobileStatusDropdown(event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const menu = document.getElementById('mobileStatusDropdownMenu');
+    if (menu) {
+        menu.style.display = menu.style.display === 'block' ? 'none' : 'block';
+    }
+    const otherMenu = document.getElementById('mobileMenuDropdown');
+    if (otherMenu) otherMenu.style.display = 'none';
+}
+
+function selectMobileStatus(val) {
+    const menu = document.getElementById('mobileStatusDropdownMenu');
+    if (menu) menu.style.display = 'none';
+    changeAvailabilityStatus(val);
+}
+
+function toggleMobileMenu(event) {
+    if (event) {
+        event.stopPropagation();
+        event.preventDefault();
+    }
+    const menu = document.getElementById('mobileMenuDropdown');
+    if (menu) {
+        menu.style.display = (menu.style.display === 'flex' || window.getComputedStyle(menu).display === 'flex') ? 'none' : 'flex';
+    }
+    const otherMenu = document.getElementById('mobileStatusDropdownMenu');
+    if (otherMenu) otherMenu.style.display = 'none';
+}
+
+function focusMobileSearch() {
+    const sidebarSearch = document.getElementById('sidebarSearch');
+    if (sidebarSearch) {
+        sidebarSearch.focus();
+        sidebarSearch.select();
+    }
+}
+
+// Tab navigation badge updater
+function updateTabBadges() {
+    let chatsUnread = 0;
+    let groupsUnread = 0;
+    
+    if (Array.isArray(conversationsList)) {
+        conversationsList.forEach(c => {
+            const count = unreadCounts[c.conversation_id] || 0;
+            if (c.type === 'dm') {
+                chatsUnread += count;
+            } else if (c.type === 'group') {
+                groupsUnread += count;
+            }
+        });
+    }
+    
+    let onlineCount = 0;
+    if (Array.isArray(usersList)) {
+        usersList.forEach(u => {
+            if (u.id !== UID) {
+                const status = window.userStatuses[u.id] || 'offline';
+                if (status === 'online' || status === 'away') {
+                    onlineCount++;
+                }
+            }
+        });
+    }
+    
+    // Update mobile tab badges
+    updateBadgeUI('mobileChatsBadge', chatsUnread);
+    updateBadgeUI('mobileGroupsBadge', groupsUnread);
+    updateBadgeUI('mobileAvailableBadge', onlineCount);
+    
+    // Update desktop nav badges
+    updateBadgeUI('desktopChatsBadge', chatsUnread);
+    updateBadgeUI('desktopGroupsBadge', groupsUnread);
+    updateBadgeUI('desktopAvailableBadge', onlineCount);
+}
+
+function updateBadgeUI(elementId, count) {
+    const el = document.getElementById(elementId);
+    if (!el) return;
+    if (count > 0) {
+        el.textContent = count;
+        el.style.display = 'flex';
+    } else {
+        el.style.display = 'none';
+    }
+}
+
+// Global click handler to dismiss mobile dropdowns when clicking outside
+document.addEventListener('click', function() {
+    const statusMenu = document.getElementById('mobileStatusDropdownMenu');
+    if (statusMenu) statusMenu.style.display = 'none';
+    const actionMenu = document.getElementById('mobileMenuDropdown');
+    if (actionMenu) actionMenu.style.display = 'none';
+});
 </script>
 {% endblock %}
