@@ -4592,6 +4592,71 @@ def handle_react_message(data):
         conn.close()
 
 
+@socketio.on('call-user')
+def handle_call_user(data):
+    to_room = data.get('to')
+    media_type = data.get('media_type', 'audio')
+    offer = data.get('offer')
+    caller_id = session.get('user_id')
+    caller_name = session.get('full_name')
+    if not to_room or not offer or not caller_id:
+        return
+    emit('call-made', {
+        'offer': offer,
+        'caller': caller_id,
+        'caller_name': caller_name,
+        'media_type': media_type
+    }, room=to_room)
+
+
+@socketio.on('make-answer')
+def handle_make_answer(data):
+    to_room = data.get('to')
+    answer = data.get('answer')
+    sender_id = session.get('user_id')
+    if not to_room or not answer or not sender_id:
+        return
+    emit('answer-made', {
+        'answer': answer,
+        'sender': sender_id
+    }, room=to_room)
+
+
+@socketio.on('ice-candidate')
+def handle_ice_candidate(data):
+    to_room = data.get('to')
+    candidate = data.get('candidate')
+    sender_id = session.get('user_id')
+    if not to_room or not candidate or not sender_id:
+        return
+    emit('ice-candidate', {
+        'candidate': candidate,
+        'sender': sender_id
+    }, room=to_room)
+
+
+@socketio.on('reject-call')
+def handle_reject_call(data):
+    to_room = data.get('to')
+    sender_id = session.get('user_id')
+    if not to_room or not sender_id:
+        return
+    emit('call-rejected', {
+        'sender': sender_id
+    }, room=to_room)
+
+
+@socketio.on('end-call')
+def handle_end_call(data):
+    to_room = data.get('to')
+    sender_id = session.get('user_id')
+    if not to_room or not sender_id:
+        return
+    emit('call-ended', {
+        'sender': sender_id
+    }, room=to_room)
+
+
 # ═══════════════════════════════════════════════════════════════════════
 # MAIN
 # ═══════════════════════════════════════════════════════════════════════

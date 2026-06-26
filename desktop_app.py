@@ -528,6 +528,7 @@ class ReydmChatPage(QWebEnginePage):
         return ok, val
 
     def handle_feature_permission_requested(self, securityOrigin, feature):
+        print(f"[Desktop App] Granting feature permission: {feature} to origin: {securityOrigin.toString()}")
         # Automatically grant permission (Notifications, Geolocation, etc.)
         self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
 
