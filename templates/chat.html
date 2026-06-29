@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/socket.io/4.0.1/socket.io.js"></script>
-<script type="module" src="https://cdn.jsdelivr.net/npm/emoji-picker-element@1/index.js"></script>
+
 <style>
     .mobile-whatsapp-header {
         display: none;
@@ -296,7 +296,77 @@
         right: 20px;
         display: none;
         z-index: 1000;
-        animation: scaleIn 0.2s;
+        animation: scaleIn 0.25s cubic-bezier(0.34, 1.56, 0.64, 1);
+        width: 320px;
+        height: 370px;
+        background: rgba(15, 17, 26, 0.93) !important;
+        backdrop-filter: blur(25px);
+        -webkit-backdrop-filter: blur(25px);
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 20px !important;
+        box-shadow: 0 16px 40px rgba(0, 0, 0, 0.65) !important;
+        flex-direction: column;
+        overflow: hidden;
+    }
+    .emoji-search-input {
+        flex: 1;
+        background: rgba(255, 255, 255, 0.03) !important;
+        border: 1px solid rgba(255, 255, 255, 0.08) !important;
+        border-radius: 12px !important;
+        padding: 9px 12px !important;
+        color: white !important;
+        outline: none !important;
+        font-size: 13px !important;
+        font-family: inherit;
+        transition: all 0.2s ease !important;
+    }
+    .emoji-search-input:focus {
+        border-color: var(--primary) !important;
+        background: rgba(255, 255, 255, 0.06) !important;
+        box-shadow: 0 0 0 3px rgba(0, 173, 181, 0.15) !important;
+    }
+    .emoji-tab-btn {
+        padding: 6px !important;
+        cursor: pointer !important;
+        color: var(--text-secondary) !important;
+        font-size: 15px !important;
+        border-radius: 10px !important;
+        transition: all 0.2s ease !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        width: 34px !important;
+        height: 34px !important;
+    }
+    .emoji-tab-btn:hover {
+        color: var(--text-main) !important;
+        background: rgba(255, 255, 255, 0.05) !important;
+    }
+    .emoji-tab-btn.active {
+        color: var(--primary) !important;
+        background: rgba(0, 173, 181, 0.15) !important;
+    }
+    .emoji-btn-item {
+        background: transparent !important;
+        border: none !important;
+        font-size: 20px !important;
+        cursor: pointer !important;
+        border-radius: 8px !important;
+        width: 36px !important;
+        height: 36px !important;
+        display: flex !important;
+        align-items: center !important;
+        justify-content: center !important;
+        transition: all 0.15s cubic-bezier(0.175, 0.885, 0.32, 1.275) !important;
+        outline: none !important;
+    }
+    .emoji-btn-item:hover {
+        background: rgba(0, 173, 181, 0.18) !important;
+        transform: scale(1.22) !important;
+        box-shadow: 0 4px 10px rgba(0, 173, 181, 0.3) !important;
+    }
+    .emoji-btn-item:active {
+        transform: scale(0.95) !important;
     }
     .icon-btn.recording {
         color: #ff4444;
@@ -1542,16 +1612,19 @@
     outline: none !important;
     font-family: inherit;
     font-size: 15px !important;
-    resize: none !important;
-    height: 24px !important; /* Start height */
     min-height: 24px !important;
     max-height: 120px !important; /* Allow growing */
+    overflow-y: auto !important;
     box-sizing: border-box;
     caret-color: #00adb5 !important; /* Vibrant caret color matching our theme */
     line-height: 20px;
+    word-break: break-word;
 }
-#msgIn::placeholder {
+#msgIn:empty::before {
+    content: attr(placeholder);
     color: #8696a0;
+    pointer-events: none;
+    display: block;
 }
 
 .whatsapp-circle-btn {
@@ -1932,7 +2005,7 @@
         </div>
     </div>
 </div>
-        <button class="new-chat-fab" onclick="openNewChatModal()" title="New Chat">✏️</button>
+        <button class="new-chat-fab" onclick="openNewChatModal()" title="New Chat"><i class="fa-solid fa-pen-to-square"></i></button>
         </div> <!-- Close teams-sidebar-panel -->
     </div> <!-- Close sidebar -->
 
@@ -2005,12 +2078,21 @@
             @
         </button>
         <button class="scroll-bottom-btn" id="scrollBottomBtn" onclick="scrollToBottom(true)">
-            ↓
+            <i class="fa-solid fa-arrow-down"></i>
             <span class="new-msg-count" id="newMsgCount" style="display:none"></span>
         </button>
 
         <div id="emojiPicker" class="emoji-picker-container">
-            <emoji-picker></emoji-picker>
+            <!-- Search Header -->
+            <div style="padding: 12px; display: flex; gap: 8px; border-bottom: 1px solid rgba(255,255,255,0.06); background: rgba(0,0,0,0.1);">
+                <input type="text" id="emojiSearch" class="emoji-search-input" placeholder="Search emojis..." autocomplete="off">
+            </div>
+            <!-- Category Tabs -->
+            <div id="emojiTabs" style="display: flex; justify-content: space-around; background: rgba(0,0,0,0.2); border-bottom: 1px solid rgba(255,255,255,0.06); padding: 6px 8px; align-items: center;">
+            </div>
+            <!-- Emoji Grid -->
+            <div id="emojiGrid" style="flex: 1; padding: 10px; overflow-y: auto; display: grid; grid-template-columns: repeat(7, 1fr); gap: 6px; justify-items: center; align-content: start;">
+            </div>
         </div>
         <div id="inputArea" class="chat-input-area" style="position: relative;">
             <div id="stagedFileBanner" class="reply-banner" style="display: none; background: rgba(99, 102, 241, 0.1); border-left-color: var(--primary);">
@@ -2040,7 +2122,7 @@
                 </button>
                 
                 <!-- Text area input -->
-                <textarea id="msgIn" placeholder="Message" autocomplete="off" rows="1"></textarea>
+                <div id="msgIn" contenteditable="true" placeholder="Message"></div>
                 
                 <!-- Attachment paperclip button -->
                 <button class="whatsapp-pill-btn" onclick="document.getElementById('fileInput').click()" title="Attach File" type="button">
@@ -2160,16 +2242,7 @@
 
 <!-- Custom Right-Click Context Menu -->
 <div id="customContextMenu">
-    <div class="context-menu-reactions-row">
-        <span onclick="sendDirectReaction('❤️')">❤️</span>
-        <span onclick="sendDirectReaction('😂')">😂</span>
-        <span onclick="sendDirectReaction('😮')">😮</span>
-        <span onclick="sendDirectReaction('😢')">😢</span>
-        <span onclick="sendDirectReaction('👍')">👍</span>
-        <span onclick="sendDirectReaction('🙏')">🙏</span>
-        <span onclick="sendDirectReaction('🔥')">🔥</span>
-        <span onclick="sendDirectReaction('👎')">👎</span>
-    </div>
+    <div class="context-menu-reactions-row"><span onclick="sendDirectReaction('❤️')">❤️</span><span onclick="sendDirectReaction('😂')">😂</span><span onclick="sendDirectReaction('😮')">😮</span><span onclick="sendDirectReaction('😢')">😢</span><span onclick="sendDirectReaction('👍')">👍</span><span onclick="sendDirectReaction('🙏')">🙏</span><span onclick="sendDirectReaction('🔥')">🔥</span><span onclick="sendDirectReaction('👎')">👎</span></div>
     <div class="context-menu-item" id="ctxReply"><i class="fa-solid fa-reply"></i> Reply</div>
     <div class="context-menu-item" id="ctxReact"><i class="fa-solid fa-face-smile"></i> React</div>
     <div class="context-menu-item" id="ctxPrivateReply" style="display:none" onclick="privateReply()"><i class="fa-solid fa-comment-dots"></i> Reply Privately</div>
@@ -2207,16 +2280,7 @@
 </div>
 
 <!-- Reaction Picker -->
-<div class="reaction-picker" id="reactionPicker">
-    <button onclick="sendReaction('❤️')">❤️</button>
-    <button onclick="sendReaction('😂')">😂</button>
-    <button onclick="sendReaction('😮')">😮</button>
-    <button onclick="sendReaction('😢')">😢</button>
-    <button onclick="sendReaction('👍')">👍</button>
-    <button onclick="sendReaction('🙏')">🙏</button>
-    <button onclick="sendReaction('🔥')">🔥</button>
-    <button onclick="sendReaction('👎')">👎</button>
-</div>
+<div class="reaction-picker" id="reactionPicker"><button onclick="sendReaction('❤️')">❤️</button><button onclick="sendReaction('😂')">😂</button><button onclick="sendReaction('😮')">😮</button><button onclick="sendReaction('😢')">😢</button><button onclick="sendReaction('👍')">👍</button><button onclick="sendReaction('🙏')">🙏</button><button onclick="sendReaction('🔥')">🔥</button><button onclick="sendReaction('👎')">👎</button></div>
 
 <!-- WebRTC Active Call Overlay -->
 <div id="callOverlay" style="display: none; position: fixed; inset: 0; background: rgba(10, 10, 15, 0.95); z-index: 99999; flex-direction: column; align-items: center; justify-content: center; backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);">
@@ -2937,13 +3001,8 @@ socket.on('user_status_changed', function(data) {
         document.getElementById('editBanner').style.display = 'flex';
         
         const msgIn = document.getElementById('msgIn');
-        msgIn.value = msg.message_text;
+        msgIn.innerText = msg.message_text;
         msgIn.focus();
-        
-        msgIn.style.height = '24px';
-        if (msgIn.scrollHeight > 24) {
-            msgIn.style.height = Math.min(msgIn.scrollHeight, 120) + 'px';
-        }
     }
     function cancelEdit() {
         editMsgId = null;
@@ -3289,6 +3348,8 @@ socket.on('user_status_changed', function(data) {
     let sidebarCtxConvId = null;
     let usersList = [];          // all active users (for mentions, forward, group create)
 
+
+
     let currentPartnerId = null;
     let currentRoom = null;
     let typingTimer;
@@ -3529,7 +3590,7 @@ socket.on('user_status_changed', function(data) {
 
         let replyHtml = '';
         if (msg.reply_to_id) {
-            let rSnippet = msg.reply_type === 'file' ? 'Sent a file' : escapeHtml(msg.reply_text || '');
+            let rSnippet = msg.reply_type === 'file' ? 'Sent an attachment' : escapeHtml(msg.reply_text || '');
             replyHtml = `<div class="reply-quote" onclick="scrollToMessage(${msg.reply_to_id})" style="cursor: pointer; transition: background 0.2s;" title="Click to view original message"><b>${escapeHtml(msg.reply_sender_name || '')}</b><br>${rSnippet}</div>`;
         }
 
@@ -3543,7 +3604,7 @@ socket.on('user_status_changed', function(data) {
             Object.entries(counts).forEach(([emoji, count]) => {
                 const IReacted = msg.reactions.some(r => r.emoji === emoji && r.user_id === UID);
                 const mineClass = IReacted ? ' mine' : '';
-                reactionsHtml += `<span class="reaction-badge${mineClass}" style="display:inline-flex; align-items:center; gap:3px; background:${IReacted ? 'rgba(37,211,102,0.15)' : 'rgba(255,255,255,0.08)'}; border:1px solid ${IReacted ? 'var(--primary)' : 'rgba(255,255,255,0.12)'}; border-radius:12px; padding:2px 8px; font-size:13px; cursor:pointer;" onclick="event.stopPropagation(); toggleReactionOptimistic(${msg.id}, '${emoji}')">${emoji} <span style="font-size:10px">${count}</span></span>`;
+                reactionsHtml += `<span class="reaction-badge${mineClass}" data-emoji="${emoji}" style="display:inline-flex; align-items:center; gap:3px; background:${IReacted ? 'rgba(37,211,102,0.15)' : 'rgba(255,255,255,0.08)'}; border:1px solid ${IReacted ? 'var(--primary)' : 'rgba(255,255,255,0.12)'}; border-radius:12px; padding:2px 8px; font-size:13px; cursor:pointer;" onclick="event.stopPropagation(); toggleReactionOptimistic(${msg.id}, '${emoji}')">${emoji} <span style="font-size:10px">${count}</span></span>`;
             });
             reactionsHtml += '</div>';
         }
@@ -3622,7 +3683,7 @@ socket.on('user_status_changed', function(data) {
         document.getElementById('msgArea').insertAdjacentHTML(position, msgHtml);
         
         if (msg.is_pinned) {
-            const snip = msg.message_type === 'file' ? '📎 File' : (msg.message_text || '');
+            const snip = msg.message_type === 'file' ? '📎 Attachment' : (msg.message_text || '');
             showPinnedBanner(msg.id, snip);
         }
         
@@ -3762,7 +3823,7 @@ socket.on('user_status_changed', function(data) {
             const senderName = msg.sender_name || 'Someone';
             let messagePreview = msg.message_text || '';
             if (msg.message_type === 'file') {
-                messagePreview = '📎 Sent a file: ' + (msg.file_name || 'Attachment');
+                messagePreview = '📎 Sent an attachment: ' + (msg.file_name || 'Attachment');
             }
             const cleanText = messagePreview.replace(/\n/g, ' ').replace(/\|/g, ' ');
             
@@ -3816,7 +3877,7 @@ socket.on('user_status_changed', function(data) {
             // Update the live sidebar preview text
             const snip = item.querySelector('.last-msg-snippet');
             if (snip && !snip.classList.contains('typing-active')) {
-                snip.textContent = msg.message_type === 'file' ? '📎 file' : (msg.message_text || '');
+                snip.textContent = msg.message_type === 'file' ? '📎 Attachment' : (msg.message_text || '');
             }
         }
 
@@ -3848,7 +3909,7 @@ socket.on('user_status_changed', function(data) {
         
         if (msg.sender_id !== UID && document.hidden && Notification.permission === "granted") {
             new Notification(`New message from ${msg.sender_name}`, {
-                body: msg.message_type === 'file' ? 'Sent a file' : (msg.message_text || '')
+                body: msg.message_type === 'file' ? 'Sent an attachment' : (msg.message_text || '')
             });
         }
         if (typeof updateTabBadges === 'function') {
@@ -3922,7 +3983,7 @@ socket.on('user_status_changed', function(data) {
                 
                 <!-- Message Body -->
                 <div onclick="navigateToConvFromNotification('${msg.conversation_id}', '${msg.sender_name}')" style="cursor: pointer; font-size: 13px; color: #dddddd; max-height: 50px; overflow: hidden; text-overflow: ellipsis; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; line-height: 1.4;">
-                    ${msg.message_type === 'file' ? '📎 File attachment' : escapeHtml(msg.message_text || '')}
+                    ${msg.message_type === 'file' ? '📎 Attachment' : escapeHtml(msg.message_text || '')}
                 </div>
                 
                 <!-- Reply Input Footer -->
@@ -4248,6 +4309,7 @@ socket.on('user_status_changed', function(data) {
                 const IReacted = data.reactions.some(r => r.emoji === emoji && r.user_id === UID);
                 if (IReacted) badge.classList.add('mine');
                 
+                badge.setAttribute('data-emoji', emoji);
                 badge.style.cssText = `display:inline-flex; align-items:center; gap:3px; background:${IReacted ? 'rgba(37,211,102,0.15)' : 'rgba(255,255,255,0.08)'}; border:1px solid ${IReacted ? 'var(--primary)' : 'rgba(255,255,255,0.12)'}; border-radius:12px; padding:2px 8px; font-size:13px; cursor:pointer;`;
                 badge.innerHTML = `${emoji} <span style="font-size:10px">${count}</span>`;
                 badge.onclick = (e) => {
@@ -4774,7 +4836,7 @@ async function clearStorage() {
         };
         
         // WhatsApp style rich modal preview text
-        const previewText = msg.message_type === 'file' ? `📁 File: ${msg.file_name}${snippet ? ' - ' + snippet : ''}` : snippet;
+        const previewText = msg.message_type === 'file' ? `📁 Attachment: ${msg.file_name}${snippet ? ' - ' + snippet : ''}` : snippet;
         document.getElementById('forwardSnippet').textContent = previewText;
         
         const list = document.getElementById('forwardList');
@@ -5041,14 +5103,13 @@ async function clearStorage() {
     });
     
     emojiBtn.addEventListener('click', () => {
-        emojiPicker.style.display = emojiPicker.style.display === 'block' ? 'none' : 'block';
+        emojiPicker.style.display = emojiPicker.style.display === 'flex' ? 'none' : 'flex';
+        if (emojiPicker.style.display === 'flex') {
+            document.getElementById('emojiSearch').focus();
+        }
     });
-    
-    document.querySelector('emoji-picker').addEventListener('emoji-click', event => {
-        msgIn.value += event.detail.unicode;
-        emojiPicker.style.display = 'none';
-        msgIn.focus();
-    });
+
+    initCustomEmojiPicker();
     
 
     function initReply(id) {
@@ -5057,7 +5118,7 @@ async function clearStorage() {
         
         replyToMsgId = id;
         document.getElementById('replyToName').textContent = msg.sender_name;
-        const text = msg.message_type === 'file' ? 'Sent a file' : (msg.message_text || '');
+        const text = msg.message_type === 'file' ? 'Sent an attachment' : (msg.message_text || '');
         document.getElementById('replyToSnippet').textContent = text.substring(0, 40) + (text.length > 40 ? '...' : '');
         document.getElementById('replyBanner').style.display = 'flex';
         document.getElementById('msgIn').focus();
@@ -5342,16 +5403,11 @@ function updateSendBtnState() {
 }
 
     msgIn.addEventListener('input', function() {
-        // Auto-resize
-        this.style.height = '24px';
-        if (this.scrollHeight > 24) {
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        }
         updateSendBtnState();
         
         if(currentRoom) socket.emit('typing', { conversation_id: currentRoom });
         
-        const val = this.value;
+        const val = this.innerText;
         const lastWord = val.split(' ').pop();
         if (currentRoom && String(currentRoom).startsWith('group_') && lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
@@ -5371,11 +5427,11 @@ function updateSendBtnState() {
     });
     
     function insertMention(name) {
-        const val = msgIn.value;
+        const val = msgIn.innerText;
         const words = val.split(' ');
         words.pop();
         words.push(`@${name} `);
-        msgIn.value = words.join(' ');
+        msgIn.innerText = words.join(' ');
         mentionDropdown.style.display = 'none';
         msgIn.focus();
     }
@@ -5386,7 +5442,7 @@ function updateSendBtnState() {
     let audioChunks = [];
 
     micBtn.addEventListener('click', async () => {
-        const text = msgIn.value.trim();
+        const text = msgIn.innerText.trim();
         const hasFiles = typeof stagedFiles !== 'undefined' && stagedFiles.length > 0;
         if (text.length > 0 || hasFiles) {
             sendMsg();
@@ -5441,7 +5497,7 @@ function updateSendBtnState() {
     // Actions
     async function sendMsg() {
         const inp = document.getElementById('msgIn');
-        const txt = inp.value.trim();
+        const txt = inp.innerText.trim();
         
         // Prevent sending if any file is still uploading
         const hasUploading = stagedFiles.some(f => f.status === 'uploading');
@@ -5468,8 +5524,7 @@ function updateSendBtnState() {
                 conversation_id: currentRoom
             });
             cancelEdit();
-            inp.value = '';
-            inp.style.height = '24px';
+            inp.innerHTML = '';
             updateSendBtnState();
             return;
         }
@@ -5491,8 +5546,7 @@ function updateSendBtnState() {
                 }
             });
             
-            inp.value = '';
-            inp.style.height = '24px';
+            inp.innerHTML = '';
             updateSendBtnState();
             cancelReply();
             cancelStagedFiles();
@@ -5514,8 +5568,7 @@ function updateSendBtnState() {
             renderMsg(tempMsg);
             scrollToBottom();
             
-            inp.value = '';
-            inp.style.height = '24px';
+            inp.innerHTML = '';
             updateSendBtnState();
             cancelReply();
             
@@ -6327,7 +6380,7 @@ function updateSendBtnState() {
             }
             
             // Check if this reaction badge already exists
-            let badge = Array.from(reactionsDiv.querySelectorAll('.reaction-badge')).find(b => b.textContent.includes(emoji));
+            let badge = Array.from(reactionsDiv.querySelectorAll('.reaction-badge')).find(b => b.getAttribute('data-emoji') === emoji);
             if (badge) {
                 // If it is our reaction, toggle it off optimistically
                 if (badge.classList.contains('mine')) {
@@ -6353,8 +6406,7 @@ function updateSendBtnState() {
                 }
             } else {
                 // Create a new badge optimistically
-                const newBadge = document.createElement('span');
-                newBadge.className = 'reaction-badge mine';
+                newBadge.setAttribute('data-emoji', emoji);
                 newBadge.style.cssText = 'display:inline-flex; align-items:center; gap:3px; background:rgba(37,211,102,0.15); border:1px solid var(--primary); border-radius:12px; padding:2px 8px; font-size:13px; cursor:pointer;';
                 newBadge.innerHTML = `${emoji} <span style="font-size:10px">1</span>`;
                 newBadge.onclick = (e) => {
@@ -6906,6 +6958,195 @@ function updateBadgeUI(elementId, count) {
     } else {
         el.style.display = 'none';
     }
+}
+
+function initCustomEmojiPicker() {
+    const categories = {
+        smileys: {
+            icon: 'fa-face-smile',
+            title: 'Smileys',
+            emojis: ['😀','😃','😄','😁','😆','😅','😂','🤣','😊','😇','🙂','🙃','😉','😌','😍','🥰','😘','😗','😙','😚','😋','😛','😝','😜','🤪','🤨','🧐','😎','🤩','🥳','😏','😒','😞','😔','😟','😕','🙁','😣','😖','😫','😩','🥺','😢','😭','😤','😠','😡','🤬','🤯','😳','🥵','🥶','😱','😨','😰','😥','😓','🤗','🤔','🤭','🤫','🤥','😶','😐','😬','🙄','😯','😦','😧','😮','😲','🥱','😴','🤤','😪','😵','🤐','🥴','🤢','🤮','😷']
+        },
+        gestures: {
+            icon: 'fa-thumbs-up',
+            title: 'Gestures',
+            emojis: ['👍','👎','👋','🤚','✋','🖖','👌','✌️','🤞','🤟','🤘','🤙','👈','👉','👆','👇','☝️','✊','👊','🤛','🤜','👏','🙌','👐','🤲','🤝','🙏','✍️','💅','🤳','💪','🧠','👀','👁️']
+        },
+        animals: {
+            icon: 'fa-paw',
+            title: 'Nature',
+            emojis: ['🐶','🐱','🐭','🐹','🐰','🦊','🐻','🐼','🐨','🐯','🦁','🐮','🐷','🐸','🐵','🐒','🐔','🐧','🐦','🐤','🐣','🐥','🦆','🦅','🦉','🦇','🐺','🐗','🐴','🦄','🐝','🐛','🦋','snail','🐞','🐜','🕷️','🕸️','🐢','🐍','🦎','🐙','🦑','🦞','🦀','🐡','🐠','🐟','🐬','🐳','🐋','🦈','🐊','🐅','🐆','zebra','🦍','🐘','🦛','🦏','🐪','🐫','🦒','🦘','🐄','🐎','🐏','🐑','🐐','🦌','🐕','🐈','🐓','🦃','🕊️','🐇','🐿️','🦔']
+        },
+        food: {
+            icon: 'fa-utensils',
+            title: 'Food',
+            emojis: ['🍎','🍏','🍐','🍊','🍋','🍌','🍉','🍇','🍓','🍒','🍑','🥭','🍍','🥥','🥝','🍅','茄','🥑','🥦','🥬','🥒','🌶️','🌽','🥕','🥖','🍞','🥐','🥨','🥞',' waffle','🧀','🍖','🍗','🥩','🥓','🍔','🍟','🍕','🌭','🥪','🌮','🌯','🍳','🥘','🍲','🥣','🥗','🍿','🧈','🧂','🥫','🍱','🍙','🍚','🍛','🍜','🍝','🍣','🍤','🍥','🍦','🍧','🍨','🍩','🍪','🎂','🍰','🧁','🥧','🍫','🍬','🍭','🍮','Honey','☕','🍵','🍶','🍷','🍸','🍹','🍺','🍻','🥂','🥃']
+        },
+        travel: {
+            icon: 'fa-plane',
+            title: 'Places',
+            emojis: ['🚗','🚙','🏎️','🚓','🚑','🚒','🚐','🚚','🚜','🛵','🏍️','🚲','🛴','🛹','🚨','🚥','🚦','🛑','⚓','⛵','🛶',' speedboat','🚢','✈️','🛫','🛬','🪂','🚁','🛰️','🚀','🛸','🛎️','🧳','⌛','⏳','⌚','⏰','⏱️','⏲️','🕰️','🧭','🗺️','🌐','🌋','🏔️','⛰️','🗻','🏕️','🏖️','🏜️','🏝️','🏞️','🏟️','🏛️','🏢','🏥','🏨','🏪','🏫','🏰','💒','🗼','🗽','⛪','🕌','🛕','🕋','⛩️']
+        },
+        objects: {
+            icon: 'fa-lightbulb',
+            title: 'Objects',
+            emojis: ['💎','🕶️','🥽','👔','👕','👖','🧣','🧤','🧥','🧦','👗','👜','🎒','🔑','🗝️','🔨','🪓','⛏️','⚒️','🛠️','🗡️','⚔️','🔫','🏹','🛡️','🔧','🔩','⚙️','⚖️','🦯','🔗','⛓️','🪝','🧲','🧪','🔬','🔭','📡','💉','💊','🩹','🚪','🛗','🛌','🛏️','🛋️','🪑','🚽','🚿',' bathtub','🪒','🧴','🧹','🧺','🧻','🧼','🧯','🛒']
+        },
+        symbols: {
+            icon: 'fa-icons',
+            title: 'Symbols',
+            emojis: ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💞','💓','💗','💖','💘','💝','💟','☮️','✝️','☪️','🕉️','☸️','✡️','☯️','🛐','♈','♉','♊','♋','♌','♍','♎','♏','♐','♑','♒','♓','🆔','⚛️','🉑','🉐','🈹','🈚','🈯']
+        }
+    };
+
+    const emojiKeywords = {
+        'heart': ['❤️','🧡','💛','💚','💙','💜','🖤','🤍','🤎','💔','❤️‍🔥','❤️‍🩹','💕','💞','💓','💗','💖','💘','💝','💟'],
+        'love': ['❤️','😍','🥰','😘','💖','💘','💝','💕'],
+        'like': ['👍','👌','✌️','👏'],
+        'dislike': ['👎'],
+        'laugh': ['😀','😃','😄','😁','😆','😅','😂','🤣'],
+        'happy': ['😀','😃','😄','😁','😆','😅','😊','😇','🙂','😉'],
+        'sad': ['😔','😟','😢','😭','🙁','☹️','🥺'],
+        'angry': ['😤','😠','😡','🤬'],
+        'fire': ['🔥','❤️‍🔥'],
+        'cat': ['🐱','🐈'],
+        'dog': ['🐶','🐕'],
+        'car': ['🚗','🚙','🏎️','🚓','🚑','🚒','🚐','🚚'],
+        'plane': ['✈️','🛫','🛬','🚁'],
+        'food': ['🍎','🍏','🍔','🍟','🍕','🌭','🥪','🌮','🌯']
+    };
+
+    const tabsContainer = document.getElementById('emojiTabs');
+    const gridContainer = document.getElementById('emojiGrid');
+    const searchInput = document.getElementById('emojiSearch');
+    const emojiPicker = document.getElementById('emojiPicker');
+    const msgIn = document.getElementById('msgIn');
+
+    let activeCategory = 'smileys';
+
+    // 1. Render Category Tabs
+    tabsContainer.innerHTML = '';
+    Object.entries(categories).forEach(([key, cat]) => {
+        const tab = document.createElement('div');
+        tab.className = `emoji-tab-btn ${key === activeCategory ? 'active' : ''}`;
+        tab.innerHTML = `<i class="fa-solid ${cat.icon}" title="${cat.title}"></i>`;
+        
+        tab.onclick = () => {
+            Array.from(tabsContainer.children).forEach(child => {
+                child.classList.remove('active');
+            });
+            tab.classList.add('active');
+            activeCategory = key;
+            renderCategory(key);
+        };
+        tabsContainer.appendChild(tab);
+    });
+
+    // 2. Render Emojis for selected Category
+    function renderCategory(catKey) {
+        gridContainer.innerHTML = '';
+        const cat = categories[catKey];
+        if (!cat) return;
+
+        cat.emojis.forEach(emoji => {
+            const btn = document.createElement('button');
+            btn.type = 'button';
+            btn.className = 'emoji-btn-item';
+            btn.textContent = emoji;
+            
+            btn.onclick = () => {
+                msgIn.focus();
+                insertTextAtCursor(emoji);
+                emojiPicker.style.display = 'none';
+            };
+            gridContainer.appendChild(btn);
+        });
+    }
+
+    // 3. Search Filter Logic
+    searchInput.oninput = () => {
+        const query = searchInput.value.toLowerCase().trim();
+        if (!query) {
+            tabsContainer.style.display = 'flex';
+            renderCategory(activeCategory);
+            return;
+        }
+
+        tabsContainer.style.display = 'none';
+        gridContainer.innerHTML = '';
+
+        let found = new Set();
+        Object.entries(emojiKeywords).forEach(([kw, list]) => {
+            if (kw.includes(query) || query.includes(kw)) {
+                list.forEach(e => found.add(e));
+            }
+        });
+
+        if (found.size > 0) {
+            found.forEach(emoji => {
+                const btn = document.createElement('button');
+                btn.type = 'button';
+                btn.className = 'emoji-btn-item';
+                btn.textContent = emoji;
+                
+                btn.onclick = () => {
+                    msgIn.focus();
+                    insertTextAtCursor(emoji);
+                    emojiPicker.style.display = 'none';
+                    searchInput.value = '';
+                    tabsContainer.style.display = 'flex';
+                };
+                gridContainer.appendChild(btn);
+            });
+        } else {
+            gridContainer.innerHTML = '<div style="grid-column: 1 / -1; color: var(--text-muted); font-size: 13px; text-align: center; margin-top: 20px;">No matching emojis found.</div>';
+        }
+    };
+
+    renderCategory(activeCategory);
+}
+
+function insertTextAtCursor(text) {
+    let sel, range;
+    if (window.getSelection) {
+        sel = window.getSelection();
+        if (sel.getRangeAt && sel.rangeCount) {
+            range = sel.getRangeAt(0);
+            let container = range.commonAncestorContainer;
+            while (container && container !== msgIn) {
+                container = container.parentNode;
+            }
+            if (container === msgIn) {
+                range.deleteContents();
+                const textNode = document.createTextNode(text);
+                range.insertNode(textNode);
+                range.setStartAfter(textNode);
+                range.setEndAfter(textNode);
+                sel.removeAllRanges();
+                sel.addRange(range);
+                return;
+            }
+        }
+    }
+    msgIn.innerText += text;
+}
+
+// Start MutationObserver for automatic Twemoji parsing
+if (typeof twemoji !== 'undefined') {
+    twemoji.parse(document.body);
+    
+    const emojiObserver = new MutationObserver((mutations) => {
+        for (const mutation of mutations) {
+            if (mutation.addedNodes.length > 0) {
+                for (const node of mutation.addedNodes) {
+                    if (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('emoji') && !node.querySelector('img.emoji')) {
+                        twemoji.parse(node);
+                    }
+                }
+            }
+        }
+    });
+    emojiObserver.observe(document.body, { childList: true, subtree: true });
 }
 
 // Global click handler to dismiss mobile dropdowns when clicking outside

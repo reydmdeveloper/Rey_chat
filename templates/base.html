@@ -97,6 +97,10 @@
             padding: 0;
             box-sizing: border-box;
             font-family: 'Inter', sans-serif;
+            font-variant-ligatures: none !important;
+            -webkit-font-variant-ligatures: none !important;
+            font-feature-settings: "liga" 0 !important;
+            -webkit-font-feature-settings: "liga" 0 !important;
         }
 
         @keyframes gradientAnimation {
@@ -213,10 +217,15 @@
             background: var(--border-color);
             border-radius: 10px;
         }
-        ::-webkit-scrollbar-thumb:hover {
-            background: rgba(255, 255, 255, 0.2);
+        img.emoji {
+            height: 1em;
+            width: 1em;
+            margin: 0 .05em 0 .1em;
+            vertical-align: -0.1em;
+            display: inline-block;
         }
     </style>
+    <script src="https://cdn.jsdelivr.net/npm/@twemoji/api@14.1.0/dist/twemoji.min.js" crossorigin="anonymous"></script>
     {% block extra_head %}{% endblock %}
 </head>
 <body>

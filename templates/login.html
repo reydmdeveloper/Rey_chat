@@ -43,8 +43,12 @@
         <div class="input-group">
             <input type="email" name="email" id="loginEmail" placeholder="Email Address" required>
         </div>
-        <div class="input-group" style="margin-bottom: 20px;">
+        <div class="input-group" style="margin-bottom: 15px;">
             <input type="password" name="password" id="loginPassword" placeholder="Password" required>
+        </div>
+        <div style="display: flex; align-items: center; gap: 8px; margin-bottom: 20px; padding-left: 2px;">
+            <input type="checkbox" id="rememberMe" style="width: 15px; height: 15px; cursor: pointer; accent-color: var(--primary);">
+            <label for="rememberMe" style="color: var(--text-muted); font-size: 13.5px; cursor: pointer; user-select: none;">Remember Me</label>
         </div>
         <button type="submit" class="btn-primary">Sign In</button>
         <div style="text-align: center; margin-top: 20px;">
@@ -55,6 +59,31 @@
 </div>
 
 <script>
-    // Sessions are now handled automatically and permanently by the server.
+    document.addEventListener("DOMContentLoaded", function() {
+        const emailInput = document.getElementById("loginEmail");
+        const passwordInput = document.getElementById("loginPassword");
+        const rememberCheckbox = document.getElementById("rememberMe");
+        const loginForm = document.getElementById("loginForm");
+
+        // Load saved credentials if present
+        if (localStorage.getItem("remember_me") === "true") {
+            emailInput.value = localStorage.getItem("saved_email") || "";
+            passwordInput.value = localStorage.getItem("saved_password") || "";
+            rememberCheckbox.checked = true;
+        }
+
+        // On form submit, save or clear credentials
+        loginForm.addEventListener("submit", function() {
+            if (rememberCheckbox.checked) {
+                localStorage.setItem("remember_me", "true");
+                localStorage.setItem("saved_email", emailInput.value);
+                localStorage.setItem("saved_password", passwordInput.value);
+            } else {
+                localStorage.removeItem("remember_me");
+                localStorage.removeItem("saved_email");
+                localStorage.removeItem("saved_password");
+            }
+        });
+    });
 </script>
 {% endblock %}

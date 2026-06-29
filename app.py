@@ -57,6 +57,15 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-this-to-a-random-secret-ke
 app.permanent_session_lifetime = timedelta(days=365)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
+@app.after_request
+def add_header(r):
+    """Add headers to prevent caching of dynamic pages in WebViews"""
+    r.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    r.headers["Pragma"] = "no-cache"
+    r.headers["Expires"] = "0"
+    return r
+
+
 # Storage directory for local uploads (C:\rey_chat or local workspace fallback)
 UPLOAD_FOLDER = r"C:\rey_chat"
 try:
@@ -3802,7 +3811,7 @@ def get_unread_notifications():
                        FROM chat_group_members 
                        WHERE user_id = %s
                    ))
-        """, (uid, f"chat_{uid}_%", f"chat_%_{uid}", uid))
+        """, (uid, f"chat\\_{uid}\\_%", f"chat\\_%\\_{uid}", uid))
         unread = cur.fetchall()
         return jsonify(unread)
     except Exception as e:
@@ -3867,7 +3876,7 @@ def get_conversations():
         ) latest ON m.conversation_id = latest.conversation_id AND m.id = latest.max_id
         WHERE m.conversation_id LIKE %s OR m.conversation_id LIKE %s
         ORDER BY m.created_at DESC
-    """, (f"chat_{uid}_%", f"chat_%_{uid}"))
+    """, (f"chat\\_{uid}\\_%", f"chat\\_%\\_{uid}"))
     dm_convos = cur.fetchall()
     
     # Bulk fetch partner users
@@ -3898,7 +3907,7 @@ def get_conversations():
                 if c["msg_id"] <= cleared_id:
                     continue  # Hide fully cleared/deleted DM chats
                 
-                last_text = c["message_text"] if c["message_type"] == "text" else f"📎 {c['message_type']}"
+                last_text = c["message_text"] if c["message_type"] == "text" else ("📎 Attachment" if c["message_type"] == "file" else f"📎 {c['message_type']}")
                 last_time_str = c["last_time"].strftime("%Y-%m-%d %H:%M:%S") if c["last_time"] else ""
                 result.append({
                     "type": "dm",
@@ -3935,7 +3944,7 @@ def get_conversations():
         last_time_str = ""
         if g["msg_id"] and g["msg_id"] > cleared_id:
             if g["message_text"]:
-                last_text = g["message_text"] if g["message_type"] == "text" else f"📎 {g['message_type']}"
+                last_text = g["message_text"] if g["message_type"] == "text" else ("📎 Attachment" if g["message_type"] == "file" else f"📎 {g['message_type']}")
             last_time_str = g["last_time"].strftime("%Y-%m-%d %H:%M:%S") if g.get("last_time") else ""
         result.append({
             "type": "group",
@@ -4125,7 +4134,7 @@ def on_connect():
                 WHERE status = 'sent' 
                   AND sender_id != %s 
                   AND (conversation_id LIKE %s OR conversation_id LIKE %s)
-            """, (user_id, f"chat_{user_id}_%", f"chat_%_{user_id}"))
+            """, (user_id, f"chat\\_{user_id}\\_%", f"chat\\_%\\_{user_id}"))
             conn.commit()
             
             # Find distinct conversation_ids that had updates to notify those senders
@@ -4135,7 +4144,7 @@ def on_connect():
                 WHERE status = 'delivered' 
                   AND sender_id != %s 
                   AND (conversation_id LIKE %s OR conversation_id LIKE %s)
-            """, (user_id, f"chat_{user_id}_%", f"chat_%_{user_id}"))
+            """, (user_id, f"chat\\_{user_id}\\_%", f"chat\\_%\\_{user_id}"))
             updated_rooms = cur.fetchall()
             for r in updated_rooms:
                 room_id = r[0]
@@ -4679,7 +4688,7 @@ if __name__ == "__main__":
     scheduler_thread.start()
 
     run_host = os.environ.get("APP_HOST", "0.0.0.0")
-    run_port = int(os.environ.get("PORT", os.environ.get("APP_PORT", 5000)))
+    run_port = int(os.environ.get("PORT", os.environ.get("APP_PORT", 5501)))
     run_debug = os.environ.get("APP_DEBUG", "false").lower() in ("true", "1", "yes")
 
     local_ip = get_local_ip()
