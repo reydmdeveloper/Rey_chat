@@ -1,12 +1,4 @@
 import sys
-import os
-import time
-import shutil
-import subprocess
-import winreg
-import socket
-import threading
-import webbrowser
 
 # Reconfigure stdout and stderr to UTF-8 to prevent emoji print crashes on Windows CP1252
 try:
@@ -17,76 +9,22 @@ try:
 except Exception:
     pass
 
-import customtkinter as ctk
-from tkinter import messagebox
-from PIL import Image
-import pystray
-import tkwebview2 as tkweb
-import tkwebview2.tkwebview2 as tk
-from uuid import uuid4
+from PyQt6.QtCore import QUrl, Qt, QTimer, QPropertyAnimation, QPoint, QEasingCurve
+from PyQt6.QtWidgets import (
+    QApplication, QMainWindow, QVBoxLayout, QHBoxLayout, QWidget, QDialog,
+    QLabel, QLineEdit, QPushButton, QGraphicsDropShadowEffect, QMessageBox,
+    QInputDialog, QSystemTrayIcon, QMenu, QStyle
+)
+from PyQt6.QtGui import QIcon, QFont, QColor, QAction
+from PyQt6.QtNetwork import QLocalServer, QLocalSocket
+from PyQt6.QtWebEngineWidgets import QWebEngineView
+from PyQt6.QtWebEngineCore import QWebEngineSettings, QWebEngineProfile, QWebEnginePage
 
-# ─── MONKEYPATCH TKWEBVIEW2 FOR PROFILE COOKIE ISOLATION ────────────────
-# By default, WebView2 shares session cookies across all instances on the same PC.
-# This patch forces a unique User Data Folder profile for each running instance.
-original_webview2_init = tk.WebView2.__init__
-
-def patched_webview2_init(self, parent, width: int, height: int, url: str = '', **kw):
-    # Initialize CTkFrame parent class
-    ctk.CTkFrame.__init__(self, parent, width=width, height=height, **kw)
-    
-    # Establish a unique user profile cache path
-    appdata = os.getenv("LOCALAPPDATA")
-    if not appdata:
-        appdata = os.path.expanduser("~\\AppData\\Local")
-    
-    # Clean up old unused profile caches on startup
-    try:
-        profiles_root = os.path.join(appdata, "Programs", "ReydmChat", "profiles")
-        if os.path.exists(profiles_root):
-            for item in os.listdir(profiles_root):
-                p_path = os.path.join(profiles_root, item)
-                if os.path.isdir(p_path):
-                    shutil.rmtree(p_path, ignore_errors=True)
-    except Exception:
-        pass
-        
-    profile_dir = os.path.join(appdata, "Programs", "ReydmChat", "profiles", f"profile_{uuid4().hex[:8]}")
-    os.makedirs(profile_dir, exist_ok=True)
-    
-    from tkwebview2.tkwebview2 import Control, Window, windows, EdgeChrome
-    import win32gui as user32
-    
-    control = Control()
-    uid = 'master' if len(windows) == 0 else 'child_' + uuid4().hex[:8]
-    window = Window(uid, str(id(self)), url=None, html=None, js_api=None, width=width, height=height, x=None, y=None,
-                  resizable=True, fullscreen=False, min_size=(200, 100), hidden=False,
-                  frameless=False, easy_drag=True,
-                  minimized=False, on_top=False, confirm_close=False, background_color='#FFFFFF',
-                  transparent=False, text_select=True, localization=None,
-                  zoomable=True, draggable=True, vibrancy=False)
-    self.window = window
-    
-    # Pass our custom profile_dir cache instead of None to isolate session state
-    self.web_view = EdgeChrome(control, window, profile_dir)
-    self.control = control
-    self.web = self.web_view.web_view
-    windows.append(window)
-    self.width = width
-    self.height = height
-    self.parent = parent
-    self.chwnd = int(str(self.control.Handle))
-    user32.SetParent(self.chwnd, self.winfo_id())
-    user32.MoveWindow(self.chwnd, 0, 0, width, height, True)
-    self.loaded = window.events.loaded
-    
-    # Call name-mangled setup functions
-    self._WebView2__go_bind()
-    if url != '':
-        self.load_url(url)
-    self.core = None
-    self.web.CoreWebView2InitializationCompleted += self._WebView2__load_core
-
-tk.WebView2.__init__ = patched_webview2_init
+import os
+import time
+import shutil
+import subprocess
+import winreg
 
 
 def get_install_dir():
@@ -121,7 +59,7 @@ def set_startup(enabled=True):
         else:
             path = os.path.abspath(sys.argv[0])
             
-        key_path = r"Software\\Microsoft\\Windows\\CurrentVersion\\Run"
+        key_path = r"Software\Microsoft\Windows\CurrentVersion\Run"
         key = winreg.OpenKey(winreg.HKEY_CURRENT_USER, key_path, 0, winreg.KEY_SET_VALUE)
         if enabled:
             winreg.SetValueEx(key, "REYDM_Chat", 0, winreg.REG_SZ, f'"{path}" --background')
@@ -134,82 +72,100 @@ def set_startup(enabled=True):
     except Exception as e:
         print(f"Error updating startup registry: {e}")
 
-
-class ReydmInstallerDialog(ctk.CTk):
+class ReydmInstallerDialog(QDialog):
     def __init__(self):
-        super().__init__()
-        self.title("REYDM Chat Setup")
-        self.geometry("460x280")
-        self.resizable(False, False)
+        super().__init__(None)
+        self.setWindowTitle("REYDM Chat Setup")
+        self.setWindowFlags(
+            Qt.WindowType.Window | 
+            Qt.WindowType.CustomizeWindowHint | 
+            Qt.WindowType.WindowTitleHint | 
+            Qt.WindowType.WindowCloseButtonHint
+        )
+        self.resize(450, 250)
         self.choice = None
         
-        # Enable dark window title bar
-        try:
-            import ctypes
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                ctypes.windll.user32.GetParent(self.winfo_id()),
-                20, ctypes.byref(ctypes.c_int(2)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
-            
-        self.configure(fg_color="#1a1a24")
+        layout = QVBoxLayout(self)
+        layout.setContentsMargins(20, 20, 20, 20)
+        layout.setSpacing(15)
         
-        title_lbl = ctk.CTkLabel(
-            self, text="Install REYDM Secure Chat?",
-            text_color="#00adb5", font=("Segoe UI", 20, "bold")
-        )
-        title_lbl.pack(pady=(20, 10), padx=20, anchor="w")
+        title = QLabel("Install REYDM Secure Chat?")
+        title.setStyleSheet("color: #00adb5; font-size: 20px; font-weight: bold;")
         
-        desc_text = (
+        desc = QLabel(
             "Would you like to install REYDM Secure Chat on this system?\n\n"
             "This will:\n"
             " • Copy the application to your local programs folder\n"
             " • Create Desktop and Start Menu shortcuts\n"
             " • Allow the app to run in the background for instant notifications"
         )
-        desc_lbl = ctk.CTkLabel(
-            self, text=desc_text, text_color="#d1d1d6",
-            font=("Segoe UI", 12), justify="left", anchor="w"
-        )
-        desc_lbl.pack(pady=10, padx=20, fill="both")
+        desc.setStyleSheet("color: #d1d1d6; font-size: 13px; line-height: 1.4;")
+        desc.setWordWrap(True)
         
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(pady=(15, 20), padx=20, fill="x")
+        btn_layout = QHBoxLayout()
+        btn_layout.setSpacing(10)
         
-        install_btn = ctk.CTkButton(
-            btn_frame, text="Install (Recommended)", fg_color="#00adb5",
-            hover_color="#00c2cb", text_color="white", font=("Segoe UI", 12, "bold"),
-            command=self.choose_install
-        )
-        install_btn.pack(side="left", padx=(0, 10))
+        install_btn = QPushButton("Install (Recommended)")
+        install_btn.setStyleSheet("""
+            background-color: #00adb5;
+            color: white;
+            font-weight: bold;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        install_btn.clicked.connect(self.choose_install)
         
-        portable_btn = ctk.CTkButton(
-            btn_frame, text="Run Portable", fg_color="#2d2d3a",
-            hover_color="#3e3e50", text_color="#d1d1d6", font=("Segoe UI", 12),
-            command=self.choose_portable
-        )
-        portable_btn.pack(side="left", padx=10)
+        portable_btn = QPushButton("Run Portable")
+        portable_btn.setStyleSheet("""
+            background-color: #2d2d3a;
+            color: #d1d1d6;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        portable_btn.clicked.connect(self.choose_portable)
         
-        cancel_btn = ctk.CTkButton(
-            btn_frame, text="Cancel", fg_color="transparent",
-            hover_color="#2d2d3a", text_color="#888899", font=("Segoe UI", 12),
-            command=self.choose_cancel
-        )
-        cancel_btn.pack(side="right")
-
+        cancel_btn = QPushButton("Cancel")
+        cancel_btn.setStyleSheet("""
+            background-color: transparent;
+            color: #888899;
+            padding: 10px 15px;
+            border-radius: 6px;
+            font-size: 13px;
+        """)
+        cancel_btn.clicked.connect(self.choose_cancel)
+        
+        btn_layout.addWidget(install_btn)
+        btn_layout.addWidget(portable_btn)
+        btn_layout.addWidget(cancel_btn)
+        
+        layout.addWidget(title)
+        layout.addWidget(desc)
+        layout.addStretch()
+        layout.addLayout(btn_layout)
+        
+        self.setStyleSheet("""
+            QDialog {
+                background-color: #1a1a24;
+                border: 1px solid #2d2d3a;
+            }
+            QLabel {
+                font-family: 'Segoe UI', Arial, sans-serif;
+            }
+        """)
+        
     def choose_install(self):
         self.choice = 'install'
-        self.destroy()
+        self.accept()
         
     def choose_portable(self):
         self.choice = 'portable'
-        self.destroy()
+        self.accept()
         
     def choose_cancel(self):
         self.choice = 'cancel'
-        self.destroy()
-
+        self.reject()
 
 def handle_installation():
     if not getattr(sys, 'frozen', False):
@@ -226,7 +182,7 @@ def handle_installation():
         return True
         
     dialog = ReydmInstallerDialog()
-    dialog.mainloop()
+    dialog.exec()
     
     if dialog.choice == 'install':
         try:
@@ -248,19 +204,23 @@ def handle_installation():
             
             set_startup(True)
             
-            messagebox.showinfo(
+            QMessageBox.information(
+                None,
                 "Installation Successful",
                 "REYDM Secure Chat has been installed successfully!\n\n"
                 "Shortcuts have been added to your Desktop and Start Menu.\n"
-                "The application will now start."
+                "The application will now start.",
+                QMessageBox.StandardButton.Ok
             )
             
             subprocess.Popen([installed_exe])
             return False
         except Exception as e:
-            messagebox.showerror(
+            QMessageBox.critical(
+                None,
                 "Installation Error",
-                f"An error occurred during installation:\n{e}\n\nRunning in portable mode instead."
+                f"An error occurred during installation:\n{e}\n\nRunning in portable mode instead.",
+                QMessageBox.StandardButton.Ok
             )
             return True
     elif dialog.choice == 'portable':
@@ -268,32 +228,37 @@ def handle_installation():
     else:
         sys.exit(0)
 
-
 def load_config():
+    """Load configuration from server_config.txt in the executable's folder."""
     if getattr(sys, 'frozen', False):
         app_dir = os.path.dirname(sys.executable)
     else:
         app_dir = os.path.dirname(os.path.abspath(__file__))
     
     config_path = os.path.join(app_dir, "server_config.txt")
+    
+    # Default settings (defaults to empty so the custom Setup Screen triggers on first run)
     default_config = {
-        "port": 5501,
-        "start_on_boot": True,
-        "minimize_to_tray": True
+        "server_url": "https://YOUR-ONLINE-SERVER.onrender.com",
+        "run_local_server": "false",
+        "disable_gpu": "false"
     }
     
     if not os.path.exists(config_path):
         try:
             with open(config_path, "w", encoding="utf-8") as f:
-                f.write("# REYDM Secure Chat Local Server Configuration\n")
-                f.write("port=5501\n")
-                f.write("start_on_boot=true\n")
-                f.write("minimize_to_tray=true\n")
+                f.write("# REYDM Secure Chat Configuration\n")
+                f.write("# To connect to a public online server (Render, PythonAnywhere, etc.), set run_local_server to false\n")
+                f.write("run_local_server=false\n")
+                f.write("# Disable hardware acceleration to prevent blinking/flickering on older or integrated GPUs\n")
+                f.write("disable_gpu=false\n")
+                f.write("# Replace the URL below with your online hosted server URL\n")
+                f.write("server_url=https://YOUR-ONLINE-SERVER.onrender.com\n")
         except Exception:
             pass
         return default_config
         
-    config = default_config.copy()
+    config = {}
     try:
         with open(config_path, "r", encoding="utf-8") as f:
             for line in f:
@@ -301,185 +266,357 @@ def load_config():
                 if line.startswith("#") or "=" not in line:
                     continue
                 key, val = line.split("=", 1)
-                key = key.strip().lower()
-                val = val.strip().lower()
-                if key == "port":
-                    try:
-                        config["port"] = int(val)
-                    except ValueError:
-                        pass
-                elif key == "start_on_boot":
-                    config["start_on_boot"] = (val == "true")
-                elif key == "minimize_to_tray":
-                    config["minimize_to_tray"] = (val == "true")
+                config[key.strip().lower()] = val.strip()
     except Exception:
-        pass
-    return config
-
-
-def save_config(port, start_on_boot, minimize_to_tray):
-    if getattr(sys, 'frozen', False):
-        app_dir = os.path.dirname(sys.executable)
-    else:
-        app_dir = os.path.dirname(os.path.abspath(__file__))
-    
-    config_path = os.path.join(app_dir, "server_config.txt")
-    try:
-        with open(config_path, "w", encoding="utf-8") as f:
-            f.write("# REYDM Secure Chat Local Server Configuration\n")
-            f.write(f"port={port}\n")
-            f.write(f"start_on_boot={'true' if start_on_boot else 'false'}\n")
-            f.write(f"minimize_to_tray={'true' if minimize_to_tray else 'false'}\n")
-        return True
-    except Exception as e:
-        print(f"Error saving config: {e}")
-        return False
-
-
-class SettingsDialog(ctk.CTkToplevel):
-    def __init__(self, parent):
-        super().__init__(parent)
-        self.parent = parent
-        self.title("Settings")
-        self.geometry("340x260")
-        self.resizable(False, False)
-        self.configure(fg_color="#1a1a24")
+        return default_config
         
-        # Keep settings window on top
-        self.attributes("-topmost", True)
+    return {
+        "server_url": config.get("server_url", "https://YOUR-ONLINE-SERVER.onrender.com"),
+        "run_local_server": config.get("run_local_server", "false"),
+        "disable_gpu": config.get("disable_gpu", "false")
+    }
+
+class ReydmOSNotification(QDialog):
+    def __init__(self, parent_window, sender_name, message_text, conversation_id):
+        super().__init__(None) # Pass None as parent to keep the notification window independent when main window is minimized
+        self.parent_window = parent_window
+        self.sender_name = sender_name
+        self.message_text = message_text
+        self.conversation_id = conversation_id
         
-        # Enable dark window title bar
-        try:
-            import ctypes
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                ctypes.windll.user32.GetParent(self.winfo_id()),
-                20, ctypes.byref(ctypes.c_int(2)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
+        # Set flags: frameless, stay on top, no taskbar entry
+        self.setWindowFlags(
+            Qt.WindowType.FramelessWindowHint | 
+            Qt.WindowType.WindowStaysOnTopHint | 
+            Qt.WindowType.Tool
+        )
+        self.setAttribute(Qt.WidgetAttribute.WA_TranslucentBackground, True)
+        
+        # Outer layout
+        outer_layout = QVBoxLayout(self)
+        outer_layout.setContentsMargins(10, 10, 10, 10)
+        
+        # Container widget for styling
+        container = QWidget()
+        container.setObjectName("container")
+        container_layout = QVBoxLayout(container)
+        container_layout.setContentsMargins(12, 10, 12, 12)
+        container_layout.setSpacing(6)
+        
+        # Apply drop shadow
+        shadow = QGraphicsDropShadowEffect(self)
+        shadow.setBlurRadius(12)
+        shadow.setColor(QColor(0, 0, 0, 180))
+        shadow.setOffset(0, 3)
+        container.setGraphicsEffect(shadow)
+        
+        # Header layout (logo indicator, title, stretch, close button)
+        header_layout = QHBoxLayout()
+        header_layout.setSpacing(6)
+        
+        icon_label = QLabel()
+        icon_label.setFixedSize(12, 12)
+        icon_label.setStyleSheet("background-color: #00adb5; border-radius: 6px;")
+        
+        title_label = QLabel("REYDM Chat")
+        title_label.setObjectName("title_label")
+        
+        close_btn = QPushButton("×")
+        close_btn.setObjectName("close_btn")
+        close_btn.setFixedSize(16, 16)
+        close_btn.clicked.connect(self.animate_exit)
+        
+        header_layout.addWidget(icon_label)
+        header_layout.addWidget(title_label)
+        header_layout.addStretch()
+        header_layout.addWidget(close_btn)
+        
+        # Sender Label
+        sender_lbl = QLabel(sender_name)
+        sender_lbl.setObjectName("sender_label")
+        
+        # Message text
+        msg_lbl = QLabel(message_text)
+        msg_lbl.setObjectName("msg_label")
+        msg_lbl.setWordWrap(True)
+        if len(message_text) > 85:
+            msg_lbl.setText(message_text[:82] + "...")
             
-        title_lbl = ctk.CTkLabel(self, text="REYDM Chat Settings", text_color="#00adb5", font=("Segoe UI", 16, "bold"))
-        title_lbl.pack(pady=(15, 10))
+        # Reply area (Input + Send button)
+        reply_layout = QHBoxLayout()
+        reply_layout.setSpacing(6)
         
-        # Port Settings
-        port_frame = ctk.CTkFrame(self, fg_color="transparent")
-        port_frame.pack(fill="x", padx=25, pady=5)
-        port_lbl = ctk.CTkLabel(port_frame, text="Server Port:", text_color="#d1d1d6", font=("Segoe UI", 11))
-        port_lbl.pack(side="left")
-        self.port_entry = ctk.CTkEntry(port_frame, width=100, height=28, fg_color="#121218", border_color="#2d2d3a", text_color="#ffffff")
-        self.port_entry.pack(side="right")
-        self.port_entry.insert(0, str(parent.port))
+        self.reply_input = QLineEdit()
+        self.reply_input.setObjectName("reply_input")
+        self.reply_input.setPlaceholderText("Type a reply...")
+        self.reply_input.returnPressed.connect(self.handle_send_reply)
         
-        # Checkboxes
-        self.start_on_boot_var = ctk.BooleanVar(value=parent.start_on_boot)
-        self.start_on_boot_cb = ctk.CTkCheckBox(
-            self, text="Start on Windows Boot", variable=self.start_on_boot_var,
-            text_color="#d1d1d6", font=("Segoe UI", 11), checkbox_width=16, checkbox_height=16,
-            fg_color="#00adb5", hover_color="#00c2cb"
-        )
-        self.start_on_boot_cb.pack(anchor="w", padx=25, pady=8)
+        self.send_btn = QPushButton("Send")
+        self.send_btn.clicked.connect(self.handle_send_reply)
         
-        self.minimize_to_tray_var = ctk.BooleanVar(value=parent.minimize_to_tray)
-        self.minimize_to_tray_cb = ctk.CTkCheckBox(
-            self, text="Minimize to Tray on Close", variable=self.minimize_to_tray_var,
-            text_color="#d1d1d6", font=("Segoe UI", 11), checkbox_width=16, checkbox_height=16,
-            fg_color="#00adb5", hover_color="#00c2cb"
-        )
-        self.minimize_to_tray_cb.pack(anchor="w", padx=25, pady=8)
+        reply_layout.addWidget(self.reply_input)
+        reply_layout.addWidget(self.send_btn)
         
-        # Buttons
-        btn_frame = ctk.CTkFrame(self, fg_color="transparent")
-        btn_frame.pack(fill="x", padx=25, pady=(15, 10))
+        # Assemble
+        container_layout.addLayout(header_layout)
+        container_layout.addWidget(sender_lbl)
+        container_layout.addWidget(msg_lbl)
+        container_layout.addLayout(reply_layout)
         
-        save_btn = ctk.CTkButton(
-            btn_frame, text="Save Settings", fg_color="#00adb5", hover_color="#00c2cb",
-            text_color="white", font=("Segoe UI", 12, "bold"), height=30,
-            command=self.save_settings
-        )
-        save_btn.pack(side="left", fill="x", expand=True, padx=(0, 5))
+        outer_layout.addWidget(container)
         
-        cancel_btn = ctk.CTkButton(
-            btn_frame, text="Cancel", fg_color="#2d2d3a", hover_color="#3e3e50",
-            text_color="#d1d1d6", font=("Segoe UI", 12), height=30,
-            command=self.destroy
-        )
-        cancel_btn.pack(side="right", fill="x", expand=True, padx=(5, 0))
-
-    def save_settings(self):
-        try:
-            new_port = int(self.port_entry.get().strip())
-            if not (1024 <= new_port <= 65535):
-                raise ValueError()
-        except ValueError:
-            messagebox.showerror("Invalid Input", "Please enter a valid port number between 1024 and 65535.")
+        # Apply Styling (premium dark-slate/teal theme matching the app design system)
+        self.setStyleSheet("""
+            QWidget#container {
+                background-color: #1a1a24;
+                border: 1px solid rgba(0, 173, 181, 0.4);
+                border-radius: 12px;
+            }
+            QLabel#title_label {
+                color: #888899;
+                font-size: 10px;
+                font-weight: bold;
+                text-transform: uppercase;
+                letter-spacing: 0.5px;
+            }
+            QLabel#sender_label {
+                color: #00adb5;
+                font-size: 13px;
+                font-weight: bold;
+            }
+            QLabel#msg_label {
+                color: #d1d1d6;
+                font-size: 12px;
+            }
+            QLineEdit#reply_input {
+                background-color: #121218;
+                color: #ffffff;
+                border: 1px solid #2d2d3a;
+                border-radius: 6px;
+                padding: 5px 8px;
+                font-size: 11px;
+            }
+            QLineEdit#reply_input:focus {
+                border: 1px solid #00adb5;
+            }
+            QPushButton {
+                background-color: #00adb5;
+                color: #ffffff;
+                border: none;
+                border-radius: 6px;
+                padding: 5px 12px;
+                font-size: 11px;
+                font-weight: bold;
+            }
+            QPushButton:hover {
+                background-color: #00c2cb;
+            }
+            QPushButton#close_btn {
+                background-color: transparent;
+                color: #888899;
+                font-size: 14px;
+                font-weight: bold;
+                padding: 0px;
+                border: none;
+                cursor: pointer;
+            }
+            QPushButton#close_btn:hover {
+                color: #ffffff;
+            }
+        """)
+        
+        # Set geometry & start animation
+        self.resize(360, 150)
+        available_geom = QApplication.primaryScreen().availableGeometry()
+        
+        width = 360
+        height = 150
+        final_x = available_geom.right() - width - 20
+        final_y = available_geom.bottom() - height - 20
+        start_x = final_x
+        start_y = available_geom.bottom() + 10
+        
+        self.setGeometry(start_x, start_y, width, height)
+        
+        # Slide up animation
+        self.anim = QPropertyAnimation(self, b"pos")
+        self.anim.setDuration(400)
+        self.anim.setStartValue(QPoint(start_x, start_y))
+        self.anim.setEndValue(QPoint(final_x, final_y))
+        self.anim.setEasingCurve(QEasingCurve.Type.OutCubic)
+        self.anim.start()
+        
+        # 8-second auto close timer
+        self.close_timer = QTimer(self)
+        self.close_timer.setSingleShot(True)
+        self.close_timer.timeout.connect(self.animate_exit)
+        self.close_timer.start(8000)
+        
+    def enterEvent(self, event):
+        self.close_timer.stop()
+        super().enterEvent(event)
+        
+    def leaveEvent(self, event):
+        if not self.reply_input.hasFocus():
+            self.close_timer.start(8000)
+        super().leaveEvent(event)
+        
+    def mousePressEvent(self, event):
+        # Check what widget was clicked
+        child = self.childAt(event.position().toPoint())
+        if child not in [self.reply_input, self.send_btn, self.close_btn] and not isinstance(child, QPushButton):
+            self.parent_window.show()
+            self.parent_window.raise_()
+            self.parent_window.activateWindow()
+            
+            # Switch room JS
+            escaped_conv = self.conversation_id.replace("'", "\\'")
+            js_code = f"if (window.navigateToRoomFromSystem) {{ window.navigateToRoomFromSystem('{escaped_conv}'); }}"
+            self.parent_window.browser.page().runJavaScript(js_code)
+            self.animate_exit()
+        super().mousePressEvent(event)
+        
+    def handle_send_reply(self):
+        text = self.reply_input.text().strip()
+        if text:
+            self.parent_window.send_reply_from_notification(self.conversation_id, text)
+        self.animate_exit()
+        
+    def animate_exit(self):
+        if hasattr(self, "_exiting") and self._exiting:
             return
-            
-        start_on_boot = self.start_on_boot_var.get()
-        minimize_to_tray = self.minimize_to_tray_var.get()
+        self._exiting = True
         
-        if save_config(new_port, start_on_boot, minimize_to_tray):
-            set_startup(start_on_boot)
-            self.parent.start_on_boot = start_on_boot
-            self.parent.minimize_to_tray = minimize_to_tray
-            messagebox.showinfo("Settings Saved", "Configuration saved successfully!")
+        available_geom = QApplication.primaryScreen().availableGeometry()
+        current_pos = self.pos()
+        end_pos = QPoint(current_pos.x(), available_geom.bottom() + 10)
+        
+        self.exit_anim = QPropertyAnimation(self, b"pos")
+        self.exit_anim.setDuration(300)
+        self.exit_anim.setStartValue(current_pos)
+        self.exit_anim.setEndValue(end_pos)
+        self.exit_anim.setEasingCurve(QEasingCurve.Type.InCubic)
+        
+        self.exit_anim.finished.connect(self.close)
+        self.exit_anim.start()
+
+class ReydmChatPage(QWebEnginePage):
+    """Custom page to intercept /api/chat/open/ URLs and download+open locally."""
+    def __init__(self, profile, parent, main_window, server_url):
+        super().__init__(profile, parent)
+        self.main_window = main_window
+        self.server_url = server_url.rstrip('/')
+        
+        # Connect permission request signal to automatically grant it
+        self.featurePermissionRequested.connect(self.handle_feature_permission_requested)
+
+    def javaScriptAlert(self, securityOrigin, msg):
+        QMessageBox.warning(self.main_window, "REYDM Chat", msg)
+
+    def javaScriptConfirm(self, securityOrigin, msg):
+        result = QMessageBox.question(
+            self.main_window, 
+            "REYDM Chat", 
+            msg, 
+            QMessageBox.StandardButton.Yes | QMessageBox.StandardButton.No, 
+            QMessageBox.StandardButton.No
+        )
+        return result == QMessageBox.StandardButton.Yes
+
+    def javaScriptPrompt(self, securityOrigin, msg, defaultVal):
+        val, ok = QInputDialog.getText(self.main_window, "REYDM Chat", msg, QLineEdit.EchoMode.Normal, defaultVal)
+        return ok, val
+
+    def handle_feature_permission_requested(self, securityOrigin, feature):
+        print(f"[Desktop App] Granting feature permission: {feature} to origin: {securityOrigin.toString()}")
+        # Automatically grant permission (Notifications, Geolocation, etc.)
+        self.setFeaturePermission(securityOrigin, feature, QWebEnginePage.PermissionPolicy.PermissionGrantedByUser)
+
+    def javaScriptConsoleMessage(self, level, message, lineNumber, sourceID):
+        if message.startswith("TRIGGER_OS_NOTIFICATION:"):
+            try:
+                parts = message.replace("TRIGGER_OS_NOTIFICATION:", "", 1).split("|", 2)
+                if len(parts) == 3:
+                    sender_name, text, conv_id = parts
+                    self.main_window.show_system_notification(sender_name, text, conv_id)
+            except Exception as e:
+                print(f"Error handling system notification trigger: {e}")
+        elif message.startswith("ACTIVE_ROOM_CHANGED:"):
+            self.main_window.current_room = message.replace("ACTIVE_ROOM_CHANGED:", "", 1).strip()
             
-            if new_port != self.parent.port:
-                self.parent.port = new_port
-                self.parent.stop_server()
-                self.parent.after(2000, self.parent.start_server)
+        super().javaScriptConsoleMessage(level, message, lineNumber, sourceID)
+
+    def acceptNavigationRequest(self, url, nav_type, is_main_frame):
+        url_str = url.toString()
+        if '/api/chat/open/' in url_str:
+            import tempfile
+            import urllib.request
+            import urllib.parse
+            try:
+                # Decoded filename path (e.g., "username/conversation_id/file.txt")
+                filename_path = url_str.split('/api/chat/open/')[-1]
+                filename_path = urllib.parse.unquote(filename_path)
                 
-            self.destroy()
-        else:
-            messagebox.showerror("Error", "Could not save configuration.")
-
-
-class ReydmChatDesktop(ctk.CTk):
-    def __init__(self, port, start_on_boot, minimize_to_tray):
-        super().__init__()
-        self.port = port
-        self.start_on_boot = start_on_boot
-        self.minimize_to_tray = minimize_to_tray
-        
-        self.server_process = None
-        self.tray_icon = None
-        self.really_quit = False
-        self.settings_window = None
-        
-        # Configure Main Window
-        self.title("REYDM Secure Chat")
-        self.geometry("1280x800")
-        self.minsize(800, 600)
-        self.configure(fg_color="#121218")
-        
-        # Enable dark window title bar
-        try:
-            import ctypes
-            ctypes.windll.dwmapi.DwmSetWindowAttribute(
-                ctypes.windll.user32.GetParent(self.winfo_id()),
-                20, ctypes.byref(ctypes.c_int(2)), ctypes.sizeof(ctypes.c_int)
-            )
-        except Exception:
-            pass
+                # Check local filesystem first (if running with a local server)
+                local_options = [
+                    os.path.join(r"C:\rey_chat", filename_path),
+                    os.path.join(os.getcwd(), "rey_chat", filename_path)
+                ]
+                opened_locally = False
+                for path in local_options:
+                    if os.path.exists(path):
+                        os.startfile(path)
+                        opened_locally = True
+                        break
+                
+                if not opened_locally:
+                    # Download the file using authenticated session cookies
+                    download_url = url_str.replace('/api/chat/open/', '/api/chat/download/')
+                    tmp_dir = os.path.join(tempfile.gettempdir(), 'rey_chat_preview')
+                    os.makedirs(tmp_dir, exist_ok=True)
+                    local_path = os.path.join(tmp_dir, os.path.basename(filename_path))
+                    
+                    # Create authenticated urllib request
+                    req = urllib.request.Request(download_url)
+                    req.add_header('User-Agent', 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36')
+                    
+                    # Collect session cookies from the main window
+                    cookies = getattr(self.main_window, 'cookies', {})
+                    if cookies:
+                        cookie_str = "; ".join([f"{k}={v}" for k, v in cookies.items()])
+                        req.add_header('Cookie', cookie_str)
+                    
+                    # Perform download
+                    with urllib.request.urlopen(req) as response:
+                        with open(local_path, 'wb') as out_file:
+                            out_file.write(response.read())
+                            
+                    os.startfile(local_path)
+            except Exception as e:
+                print(f"Error opening file: {e}")
+            return False  # Don't navigate
             
-        self.set_app_icon()
-        
-        # Start local Flask backend server
-        self.start_server()
-        
-        # Embed Web Browser Frame
-        self.browser = tkweb.WebView2(self, width=1280, height=800)
-        self.browser.pack(fill="both", expand=True)
-        
-        # Load local server URL once server goes online
-        self.load_chat_url()
-        
-        # Protocol mapping for Close button
-        self.protocol("WM_DELETE_WINDOW", self.on_close_window)
-        
-        # Setup tray icon
-        self.setup_tray()
+        # Intercept external links to open in default browser (Chrome)
+        if url.scheme() in ['http', 'https']:
+            # If the link is not part of the active chat server, open in external browser
+            if not url_str.startswith(self.server_url) and "YOUR-ONLINE-SERVER" not in self.server_url:
+                import webbrowser
+                try:
+                    webbrowser.open(url_str)
+                except Exception as e:
+                    print(f"Error opening link: {e}")
+                return False  # Intercept and don't load in app webview
+                
+        return super().acceptNavigationRequest(url, nav_type, is_main_frame)
 
-    def set_app_icon(self):
+class ReydmChatDesktop(QMainWindow):
+    def __init__(self, target_url="https://rey-chat.onrender.com/"):
+        super().__init__()
+        self.target_url = target_url
+        self.setWindowTitle("REYDM Secure Chat")
+        self.resize(1280, 800)
+        
+        # Set window icon if it exists
         if getattr(sys, 'frozen', False):
             base_dir = sys._MEIPASS
         else:
@@ -487,219 +624,387 @@ class ReydmChatDesktop(ctk.CTk):
             
         icon_path = os.path.join(base_dir, "Images", "icon.ico")
         if os.path.exists(icon_path):
-            try:
-                self.iconbitmap(icon_path)
-            except Exception:
+            from PyQt6.QtGui import QIcon
+            self.setWindowIcon(QIcon(icon_path))
+        
+        central_widget = QWidget()
+        self.setCentralWidget(central_widget)
+        layout = QVBoxLayout(central_widget)
+        layout.setContentsMargins(0, 0, 0, 0)
+        
+        self.browser = QWebEngineView()
+        self.profile = QWebEngineProfile.defaultProfile()
+        self.profile.setHttpCacheType(QWebEngineProfile.HttpCacheType.NoCache)
+        
+        # Track cookies for authenticating file downloads
+        self.cookies = {}
+        self.profile.cookieStore().cookieAdded.connect(self.handle_cookie_added)
+        
+        # Load config to determine GPU state
+        config = load_config()
+        disable_gpu = config.get("disable_gpu", "false").lower() == "true"
+
+        # Enable Hardware Acceleration and WebGL only if GPU is NOT disabled
+        settings = self.profile.settings()
+        settings.setAttribute(QWebEngineSettings.WebAttribute.WebGLEnabled, not disable_gpu)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.Accelerated2dCanvasEnabled, not disable_gpu)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.JavascriptEnabled, True)
+        settings.setAttribute(QWebEngineSettings.WebAttribute.LocalStorageEnabled, True)
+        
+        self.active_notifications = []
+        self.load_attempts = 0
+        
+        # Use custom page for URL interception and notification bridge
+        custom_page = ReydmChatPage(self.profile, self.browser, self, target_url)
+        self.browser.setPage(custom_page)
+        
+        # Set dark background color to prevent white flashes during loading
+        custom_page.setBackgroundColor(QColor(18, 18, 18))
+        self.browser.setStyleSheet("background-color: #121212;")
+        
+        # Connect load finished signal to check for connection failures
+        self.browser.loadFinished.connect(self.handle_load_finished)
+        
+        # Load the server URL asynchronously to allow the window frame to show up instantly
+        if "YOUR-ONLINE-SERVER" in target_url:
+            QTimer.singleShot(0, self.show_config_error)
+        else:
+            QTimer.singleShot(0, lambda: self.browser.setUrl(QUrl(target_url)))
+            
+        layout.addWidget(self.browser)
+
+        # Setup System Tray Icon
+        self.really_quit = False
+        self.tray_icon = QSystemTrayIcon(self)
+        if os.path.exists(icon_path):
+            self.tray_icon.setIcon(QIcon(icon_path))
+        else:
+            self.tray_icon.setIcon(self.style().standardIcon(QStyle.StandardPixmap.SP_ComputerIcon))
+            
+        tray_menu = QMenu()
+        show_action = QAction("Show REYDM Chat", self)
+        show_action.triggered.connect(self.show_normal)
+        exit_action = QAction("Exit", self)
+        exit_action.triggered.connect(self.quit_application)
+        
+        tray_menu.addAction(show_action)
+        tray_menu.addSeparator()
+        tray_menu.addAction(exit_action)
+        
+        self.tray_icon.setContextMenu(tray_menu)
+        self.tray_icon.activated.connect(self.on_tray_icon_activated)
+        self.tray_icon.show()
+        
+        # Connect download handler
+        self.profile.downloadRequested.connect(self.handle_download_requested)
+        
+    def handle_cookie_added(self, cookie):
+        name = cookie.name().data().decode('utf-8')
+        value = cookie.value().data().decode('utf-8')
+        self.cookies[name] = value
+        
+    def handle_load_finished(self, success):
+        """If the connection to the server fails, retry connection. For local server, we do rapid checks (500ms) up to 12 times."""
+        if success:
+            self.load_attempts = 0
+        else:
+            self.load_attempts += 1
+            run_local = load_config()["run_local_server"].lower() == "true"
+            max_attempts = 12 if run_local else 3
+            retry_delay = 500 if run_local else 5000
+            
+            if self.load_attempts < max_attempts:
+                print(f"Server load failed. Retrying connection (Attempt {self.load_attempts + 1} of {max_attempts}) in {retry_delay}ms...")
+                QTimer.singleShot(retry_delay, lambda: self.browser.setUrl(QUrl(self.target_url)))
+            else:
+                self.show_config_error()
+            
+    def show_config_error(self):
+        """Displays a beautiful, dark-themed connection configuration page inside the app window."""
+        error_html = f"""
+        <html>
+        <head>
+            <style>
+                body {{
+                    background: #121212;
+                    color: #ffffff;
+                    font-family: 'Segoe UI', -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+                    display: flex;
+                    flex-direction: column;
+                    align-items: center;
+                    justify-content: center;
+                    height: 100vh;
+                    margin: 0;
+                    text-align: center;
+                }}
+                .container {{
+                    background: #1e1e1e;
+                    border: 1px solid #2d2d2d;
+                    border-radius: 16px;
+                    padding: 40px;
+                    box-shadow: 0 10px 30px rgba(0,0,0,0.6);
+                    max-width: 550px;
+                }}
+                .logo-container {{
+                    margin-bottom: 25px;
+                }}
+                h1 {{
+                    color: #00adb5;
+                    margin-bottom: 15px;
+                    font-size: 28px;
+                    font-weight: 600;
+                    letter-spacing: 0.5px;
+                }}
+                p {{
+                    color: #aaaaaa;
+                    font-size: 15px;
+                    line-height: 1.6;
+                    margin-bottom: 20px;
+                }}
+                .steps {{
+                    text-align: left;
+                    background: #252525;
+                    padding: 20px;
+                    border-radius: 8px;
+                    border-left: 4px solid #00adb5;
+                    margin: 20px 0;
+                }}
+                .steps ol {{
+                    margin: 0;
+                    padding-left: 20px;
+                    color: #cccccc;
+                }}
+                .steps li {{
+                    margin-bottom: 10px;
+                    font-size: 14.5px;
+                }}
+                .code-box {{
+                    background: #121212;
+                    color: #393e46;
+                    padding: 12px;
+                    border-radius: 6px;
+                    font-family: 'Courier New', Courier, monospace;
+                    margin: 15px 0;
+                    font-size: 14px;
+                    border: 1px solid #2d2d2d;
+                    color: #00adb5;
+                    font-weight: bold;
+                    letter-spacing: 0.5px;
+                    user-select: all;
+                }}
+                .btn {{
+                    background: #00adb5;
+                    color: #ffffff;
+                    border: none;
+                    padding: 12px 28px;
+                    border-radius: 8px;
+                    font-size: 15px;
+                    cursor: pointer;
+                    font-weight: bold;
+                    transition: background 0.2s ease, transform 0.1s ease;
+                    margin-top: 10px;
+                }}
+                .btn:hover {{
+                    background: #00c2cb;
+                }}
+                .btn:active {{
+                    transform: scale(0.98);
+                }}
+            </style>
+        </head>
+        <body>
+            <div class="container">
+                <div class="logo-container">
+                    <svg width="64" height="64" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+                        <path d="M12 2C6.48 2 2 6.48 2 12C2 17.52 6.48 22 12 22C17.52 22 22 17.52 22 12C22 6.48 17.52 2 12 2ZM13 17H11V15H13V17ZM13 13H11V7H13V13Z" fill="#00adb5"/>
+                    </svg>
+                </div>
+                <h1>REYDM Secure Chat</h1>
+                <p>Unable to connect to the online server. This is normal if you haven't configured your custom online deployment yet.</p>
+                
+                <div class="steps">
+                    <div style="font-weight: bold; color: #ffffff; margin-bottom: 8px;">To connect your executable:</div>
+                    <ol>
+                        <li>Open the folder where this <strong>REYDM_Chat.exe</strong> is located.</li>
+                        <li>Open the file named <strong>server_config.txt</strong>.</li>
+                        <li>Change <strong>server_url</strong> to your free online server address, like:</li>
+                        <div class="code-box">server_url=https://your-app.onrender.com</div>
+                        <li>Save the file and click <strong>Reload Server Connection</strong> below.</li>
+                    </ol>
+                </div>
+                <button class="btn" onclick="window.location.href='{self.target_url}'">Reload Server Connection</button>
+            </div>
+        </body>
+        </html>
+        """
+        self.browser.setHtml(error_html)
+        
+    def handle_download_requested(self, download):
+        from PyQt6.QtWidgets import QFileDialog
+        
+        suggested_filename = download.suggestedFileName()
+        file_path, _ = QFileDialog.getSaveFileName(
+            self,
+            "Save File As",
+            suggested_filename
+        )
+        
+        if file_path:
+            download.setDownloadDirectory(os.path.dirname(file_path))
+            download.setDownloadFileName(os.path.basename(file_path))
+            download.accept()
+        else:
+            download.cancel()
+
+    def show_system_notification(self, sender_name, text, conv_id):
+        is_minimized = self.isMinimized()
+        is_inactive = not self.isActiveWindow()
+        is_different_room = (getattr(self, "current_room", "") != conv_id)
+        
+        if is_minimized or is_inactive or is_different_room:
+            # Close any existing active notifications
+            for notif in list(self.active_notifications):
                 try:
-                    img = Image.open(icon_path)
-                    from PIL import ImageTk
-                    photo = ImageTk.PhotoImage(img)
-                    self.iconphoto(True, photo)
-                except Exception as e:
-                    print(f"Could not set app icon: {e}")
-
-    def setup_tray(self):
-        if getattr(sys, 'frozen', False):
-            base_dir = sys._MEIPASS
-        else:
-            base_dir = os.path.dirname(os.path.abspath(__file__))
-            
-        icon_path = os.path.join(base_dir, "Images", "icon.png")
-        if not os.path.exists(icon_path):
-            icon_path = os.path.join(base_dir, "Images", "icon.ico")
-            
-        try:
-            image = Image.open(icon_path)
-            
-            def on_show(icon, item):
-                self.after(0, self.restore_from_tray)
-                
-            def on_open_browser(icon, item):
-                self.after(0, self.open_in_external_browser)
-                
-            def on_settings(icon, item):
-                self.after(0, self.show_settings_dialog)
-                
-            def on_exit(icon, item):
-                self.after(0, self.quit_application)
-                
-            menu = pystray.Menu(
-                pystray.MenuItem("Show Chat", on_show, default=True),
-                pystray.MenuItem("Open in Default Browser", on_open_browser),
-                pystray.MenuItem("Settings", on_settings),
-                pystray.Menu.Separator(),
-                pystray.MenuItem("Exit", on_exit)
-            )
-            
-            self.tray_icon = pystray.Icon("REYDM Chat", image, "REYDM Chat", menu)
-            threading.Thread(target=self.tray_icon.run, daemon=True).start()
-        except Exception as e:
-            print(f"Error setting up system tray: {e}")
-
-    def show_settings_dialog(self):
-        if self.settings_window is None or not self.settings_window.winfo_exists():
-            self.settings_window = SettingsDialog(self)
-        else:
-            self.settings_window.focus()
-
-    def start_server(self):
-        if self.server_process is not None:
-            return
-            
-        if getattr(sys, 'frozen', False):
-            cmd = [sys.executable, "--server", str(self.port)]
-        else:
-            cmd = [sys.executable, "desktop_app.py", "--server", str(self.port)]
-            
-        try:
-            self.server_process = subprocess.Popen(
-                cmd,
-                stdout=subprocess.DEVNULL,
-                stderr=subprocess.DEVNULL,
-                creationflags=subprocess.CREATE_NO_WINDOW if os.name == 'nt' else 0
-            )
-        except Exception as e:
-            print(f"Failed to launch server: {e}")
-            self.server_process = None
-
-    def stop_server(self):
-        if self.server_process is None:
-            return
-        try:
-            self.server_process.terminate()
-            time.sleep(0.5)
-            if self.server_process.poll() is None:
-                self.server_process.kill()
-            self.server_process = None
-        except Exception:
-            pass
-
-    def load_chat_url(self):
-        # Asynchronously wait for local Flask port to become ready, then load url
-        def wait_for_server():
-            retries = 0
-            while retries < 30: # Max 3 seconds wait
-                s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-                s.settimeout(0.1)
-                try:
-                    s.connect(("127.0.0.1", self.port))
-                    s.close()
-                    # Server is live! Load URL on the Tkinter main thread
-                    self.after(0, lambda: self.browser.load_url(f"http://127.0.0.1:{self.port}/"))
-                    return
+                    notif.close()
                 except Exception:
                     pass
-                time.sleep(0.1)
-                retries += 1
-            # Fallback connection load
-            self.after(0, lambda: self.browser.load_url(f"http://127.0.0.1:{self.port}/"))
+            self.active_notifications.clear()
             
-        threading.Thread(target=wait_for_server, daemon=True).start()
+            notif = ReydmOSNotification(self, sender_name, text, conv_id)
+            self.active_notifications.append(notif)
+            notif.show()
 
-    def open_in_external_browser(self):
-        url = f"http://127.0.0.1:{self.port}/"
-        try:
-            webbrowser.open(url)
-        except Exception:
-            pass
+    def send_reply_from_notification(self, conversation_id, text):
+        escaped_text = text.replace('\\', '\\\\').replace("'", "\\'")
+        js_code = f"if (window.sendReplyFromSystem) {{ window.sendReplyFromSystem('{conversation_id}', '{escaped_text}'); }}"
+        self.browser.page().runJavaScript(js_code)
 
-    def on_close_window(self):
-        if self.minimize_to_tray and self.tray_icon is not None:
-            self.withdraw()
-        else:
-            self.quit_application()
-
-    def restore_from_tray(self):
-        self.deiconify()
-        self.lift()
-        self.focus_force()
+    def show_normal(self):
+        self.show()
+        self.raise_()
+        self.activateWindow()
 
     def quit_application(self):
         self.really_quit = True
-        self.stop_server()
-        if self.tray_icon is not None:
-            try:
-                self.tray_icon.stop()
-            except Exception:
-                pass
-        self.destroy()
-        sys.exit(0)
+        QApplication.quit()
 
+    def on_tray_icon_activated(self, reason):
+        if reason == QSystemTrayIcon.ActivationReason.Trigger:
+            if self.isVisible():
+                self.hide()
+            else:
+                self.show_normal()
 
-def check_single_instance(port=49999):
-    s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-    try:
-        s.bind(("127.0.0.1", port))
-        s.listen(1)
-        
-        def listen_for_focus():
-            while True:
-                try:
-                    conn, addr = s.accept()
-                    data = conn.recv(1024)
-                    if data == b"show":
-                        if globals().get("client"):
-                            globals()["client"].after(0, globals()["client"].restore_from_tray)
-                    conn.close()
-                except Exception:
-                    break
-        threading.Thread(target=listen_for_focus, daemon=True).start()
-        return True
-    except Exception:
-        try:
-            s2 = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s2.connect(("127.0.0.1", port))
-            s2.sendall(b"show")
-            s2.close()
-        except Exception:
-            pass
-        return False
-
+    def closeEvent(self, event):
+        if not self.really_quit:
+            event.ignore()
+            self.hide()
+        else:
+            super().closeEvent(event)
 
 if __name__ == "__main__":
-    # Server Subprocess Mode
-    if "--server" in sys.argv:
-        server_port = 5501
-        try:
-            idx = sys.argv.index("--server")
-            if idx + 1 < len(sys.argv):
-                server_port = int(sys.argv[idx + 1])
-        except ValueError:
-            pass
-            
-        import app as flask_module
-        from app import app as flask_app, socketio
-        import os
-        
-        os.environ["PORT"] = str(server_port)
-        os.environ["APP_PORT"] = str(server_port)
-        
-        socketio.run(flask_app, host="0.0.0.0", port=server_port, allow_unsafe_werkzeug=True)
-        sys.exit(0)
-        
-    # Single Instance Check
-    if not check_single_instance(49999):
-        sys.exit(0)
-        
-    # Set CustomTkinter visual styling
-    ctk.set_appearance_mode("Dark")
-    ctk.set_default_color_theme("blue")
+    # Load configuration
+    config = load_config()
+    disable_gpu = config.get("disable_gpu", "false").lower() == "true"
     
+    # Configure Chromium/QtWebEngine flags
+    flags = ["--ignore-gpu-blocklist", "--no-sandbox"]
+    if disable_gpu:
+        flags.append("--disable-gpu")
+        flags.append("--disable-gpu-compositing")
+        flags.append("--disable-gpu-rasterization")
+        flags.append("--disable-accelerated-2d-canvas")
+        flags.append("--disable-accelerated-video-decode")
+        flags.append("--disable-gpu-sandbox")
+        flags.append("--disable-webgl")
+        flags.append("--disable-3d-apis")
+        flags.append("--disable-direct-composition")
+        flags.append("--use-gl=swiftshader")
+        flags.append("--use-angle=warp")
+        os.environ["QT_OPENGL"] = "software"
+        os.environ["QT_QUICK_BACKEND"] = "software"
+        os.environ["QTWEBENGINE_DISABLE_GPU"] = "1"
+        os.environ["QT_ANGLE_PLATFORM"] = "warp"
+    else:
+        flags.append("--enable-gpu-rasterization")
+        
+    os.environ["QTWEBENGINE_CHROMIUM_FLAGS"] = " ".join(flags)
+    
+    # Use Round policy instead of PassThrough to prevent layout/resize feedback loops (flickering/blinking)
+    QApplication.setHighDpiScaleFactorRoundingPolicy(
+        Qt.HighDpiScaleFactorRoundingPolicy.Round
+    )
+    app = QApplication(sys.argv)
+    app.setQuitOnLastWindowClosed(False)
+    
+    # ─── SINGLE INSTANCE CHECK ───────────────────────────────────────
+    socket_name = "reydm_chat_single_instance_socket"
+    socket = QLocalSocket()
+    socket.connectToServer(socket_name)
+    if socket.waitForConnected(500):
+        # Already running! Send command to restore window
+        socket.write(b"show")
+        socket.waitForBytesWritten(1000)
+        socket.disconnectFromServer()
+        sys.exit(0)
+        
+    # Start local server to listen for future launch attempts
+    local_server = QLocalServer()
+    local_server.removeServer(socket_name) # Clean up dead sockets from crashes
+    
+    def handle_new_instance():
+        client_socket = local_server.nextPendingConnection()
+        if client_socket:
+            client_socket.readyRead.connect(lambda: handle_instance_message(client_socket))
+            
+    def handle_instance_message(client_socket):
+        data = client_socket.readAll().data()
+        if data == b"show":
+            active_client = globals().get('client')
+            if active_client:
+                active_client.show_normal()
+        client_socket.disconnectFromServer()
+        
+    local_server.newConnection.connect(handle_new_instance)
+    if not local_server.listen(socket_name):
+        print("Warning: Could not start single instance local server listener.")
+    # ─────────────────────────────────────────────────────────────────
+
     # Run installer check
     if not handle_installation():
         sys.exit(0)
         
     # Load configuration
     config = load_config()
+    target_url = config["server_url"]
+    run_local = config["run_local_server"].lower() == "true"
     
-    # Start main application
-    client = ReydmChatDesktop(
-        port=config["port"],
-        start_on_boot=config["start_on_boot"],
-        minimize_to_tray=config["minimize_to_tray"]
-    )
-    
-    if "--background" in sys.argv:
-        client.withdraw()
+    if run_local:
+        import threading
+        import app as flask_module
+        from app import app as flask_app, socketio
         
-    client.mainloop()
+        import os
+        run_port = int(os.environ.get("PORT", os.environ.get("APP_PORT", 5000)))
+        
+        # Override target_url to load the local Flask server in QWebEngineView!
+        target_url = f"http://127.0.0.1:{run_port}/"
+        
+        # Run local server binding to 0.0.0.0 so other network machines can connect
+        def run_server():
+            socketio.run(flask_app, host="0.0.0.0", port=run_port, allow_unsafe_werkzeug=True)
+
+        backend_thread = threading.Thread(target=run_server, daemon=True)
+        backend_thread.start()
+        
+        # Give the backend server a tiny moment to initialize without blocking GUI startup
+        time.sleep(0.1)
+
+    client = ReydmChatDesktop(target_url)
+    
+    # If starting in background (e.g., automatically on Windows startup), do not show window
+    if "--background" not in sys.argv:
+        client.show()
+    
+    # Run the desktop app
+    sys.exit(app.exec())
