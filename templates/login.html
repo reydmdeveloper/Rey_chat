@@ -72,8 +72,7 @@
             rememberCheckbox.checked = true;
         }
 
-        // On form submit, save or clear credentials
-        loginForm.addEventListener("submit", function() {
+        function saveCredentials() {
             if (rememberCheckbox.checked) {
                 localStorage.setItem("remember_me", "true");
                 localStorage.setItem("saved_email", emailInput.value);
@@ -83,7 +82,15 @@
                 localStorage.removeItem("saved_email");
                 localStorage.removeItem("saved_password");
             }
-        });
+        }
+
+        // Save immediately on typing or checking to bypass WebView unload races
+        emailInput.addEventListener("input", saveCredentials);
+        passwordInput.addEventListener("input", saveCredentials);
+        rememberCheckbox.addEventListener("change", saveCredentials);
+
+        // Backup save on submit
+        loginForm.addEventListener("submit", saveCredentials);
     });
 </script>
 {% endblock %}

@@ -3347,6 +3347,7 @@ socket.on('user_status_changed', function(data) {
     let reactionTargetMsgId = null;
     let sidebarCtxConvId = null;
     let usersList = [];          // all active users (for mentions, forward, group create)
+    let emojiObserver = null;
 
 
 
@@ -5407,7 +5408,7 @@ function updateSendBtnState() {
         
         if(currentRoom) socket.emit('typing', { conversation_id: currentRoom });
         
-        const val = this.innerText;
+        const val = getMsgInText();
         const lastWord = val.split(' ').pop();
         if (currentRoom && String(currentRoom).startsWith('group_') && lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
@@ -5427,13 +5428,22 @@ function updateSendBtnState() {
     });
     
     function insertMention(name) {
-        const val = msgIn.innerText;
+        const val = getMsgInText();
         const words = val.split(' ');
         words.pop();
         words.push(`@${name} `);
         msgIn.innerText = words.join(' ');
+        if (typeof twemoji !== 'undefined') twemoji.parse(msgIn);
         mentionDropdown.style.display = 'none';
         msgIn.focus();
+        
+        // Move caret to the end
+        const range = document.createRange();
+        const sel = window.getSelection();
+        range.selectNodeContents(msgIn);
+        range.collapse(false);
+        sel.removeAllRanges();
+        sel.addRange(range);
     }
 
     // Voice Note Recording
@@ -5442,7 +5452,7 @@ function updateSendBtnState() {
     let audioChunks = [];
 
     micBtn.addEventListener('click', async () => {
-        const text = msgIn.innerText.trim();
+        const text = getMsgInText();
         const hasFiles = typeof stagedFiles !== 'undefined' && stagedFiles.length > 0;
         if (text.length > 0 || hasFiles) {
             sendMsg();
@@ -5497,7 +5507,7 @@ function updateSendBtnState() {
     // Actions
     async function sendMsg() {
         const inp = document.getElementById('msgIn');
-        const txt = inp.innerText.trim();
+        const txt = getMsgInText();
         
         // Prevent sending if any file is still uploading
         const hasUploading = stagedFiles.some(f => f.status === 'uploading');
@@ -7056,7 +7066,7 @@ function initCustomEmojiPicker() {
             
             btn.onclick = () => {
                 msgIn.focus();
-                insertTextAtCursor(emoji);
+                insertHtmlAtCursor(typeof twemoji !== 'undefined' ? twemoji.parse(emoji) : emoji);
                 emojiPicker.style.display = 'none';
             };
             gridContainer.appendChild(btn);
@@ -7091,7 +7101,7 @@ function initCustomEmojiPicker() {
                 
                 btn.onclick = () => {
                     msgIn.focus();
-                    insertTextAtCursor(emoji);
+                    insertHtmlAtCursor(typeof twemoji !== 'undefined' ? twemoji.parse(emoji) : emoji);
                     emojiPicker.style.display = 'none';
                     searchInput.value = '';
                     tabsContainer.style.display = 'flex';
@@ -7106,7 +7116,18 @@ function initCustomEmojiPicker() {
     renderCategory(activeCategory);
 }
 
-function insertTextAtCursor(text) {
+function getMsgInText() {
+    const inp = document.getElementById('msgIn');
+    if (!inp) return '';
+    const temp = document.createElement('div');
+    temp.innerHTML = inp.innerHTML;
+    temp.querySelectorAll('img.emoji').forEach(img => {
+        img.replaceWith(document.createTextNode(img.alt || ''));
+    });
+    return (temp.innerText || temp.textContent || '').trim();
+}
+
+function insertHtmlAtCursor(html) {
     let sel, range;
     if (window.getSelection) {
         sel = window.getSelection();
@@ -7118,35 +7139,133 @@ function insertTextAtCursor(text) {
             }
             if (container === msgIn) {
                 range.deleteContents();
-                const textNode = document.createTextNode(text);
-                range.insertNode(textNode);
-                range.setStartAfter(textNode);
-                range.setEndAfter(textNode);
-                sel.removeAllRanges();
-                sel.addRange(range);
+                
+                const el = document.createElement("div");
+                el.innerHTML = html;
+                const frag = document.createDocumentFragment();
+                let node, lastNode;
+                while ((node = el.firstChild)) {
+                    lastNode = frag.appendChild(node);
+                }
+                range.insertNode(frag);
+                
+                if (lastNode) {
+                    range = range.cloneRange();
+                    range.setStartAfter(lastNode);
+                    range.collapse(true);
+                    sel.removeAllRanges();
+                    sel.addRange(range);
+                }
                 return;
             }
         }
     }
-    msgIn.innerText += text;
+    msgIn.innerHTML += html;
+}
+
+function parseMsgInWithCaret() {
+    if (typeof twemoji === 'undefined') return;
+    const msgIn = document.getElementById('msgIn');
+    if (!msgIn) return;
+    
+    const sel = window.getSelection();
+    if (!sel.rangeCount) {
+        twemoji.parse(msgIn);
+        return;
+    }
+    
+    let range;
+    try {
+        range = sel.getRangeAt(0);
+    } catch(e) {
+        twemoji.parse(msgIn);
+        return;
+    }
+    
+    let container = range.commonAncestorContainer;
+    while (container && container !== msgIn) {
+        container = container.parentNode;
+    }
+    if (container !== msgIn) {
+        twemoji.parse(msgIn);
+        return;
+    }
+    
+    if (emojiObserver) emojiObserver.disconnect();
+    
+    const marker = document.createElement('span');
+    marker.id = 'caret-marker';
+    marker.style.cssText = 'display:none; width:0; height:0; line-height:0; padding:0; margin:0; border:none;';
+    
+    try {
+        range.insertNode(marker);
+        twemoji.parse(msgIn);
+        
+        const newMarker = document.getElementById('caret-marker');
+        if (newMarker) {
+            const newRange = document.createRange();
+            newRange.setStartAfter(newMarker);
+            newRange.collapse(true);
+            sel.removeAllRanges();
+            sel.addRange(newRange);
+            newMarker.remove();
+        }
+    } catch(e) {
+        twemoji.parse(msgIn);
+    }
+    
+    if (emojiObserver) {
+        emojiObserver.observe(document.body, { 
+            childList: true, 
+            subtree: true,
+            characterData: true
+        });
+    }
 }
 
 // Start MutationObserver for automatic Twemoji parsing
 if (typeof twemoji !== 'undefined') {
     twemoji.parse(document.body);
     
-    const emojiObserver = new MutationObserver((mutations) => {
+    emojiObserver = new MutationObserver((mutations) => {
+        let needsInputParse = false;
+        
         for (const mutation of mutations) {
-            if (mutation.addedNodes.length > 0) {
-                for (const node of mutation.addedNodes) {
-                    if (node.nodeType === Node.ELEMENT_NODE && !node.classList.contains('emoji') && !node.querySelector('img.emoji')) {
-                        twemoji.parse(node);
-                    }
+            let target = mutation.target;
+            if (mutation.type === 'characterData') {
+                target = mutation.target.parentNode;
+            } else if (mutation.addedNodes.length > 0) {
+                target = mutation.addedNodes[0];
+                if (target.nodeType === Node.TEXT_NODE) {
+                    target = target.parentNode;
+                }
+            } else {
+                continue;
+            }
+            
+            if (target && target.nodeType === Node.ELEMENT_NODE) {
+                if (target.classList.contains('emoji') || target.querySelector('img.emoji')) {
+                    continue;
+                }
+                const msgIn = document.getElementById('msgIn');
+                if (msgIn && (msgIn === target || msgIn.contains(target))) {
+                    needsInputParse = true;
+                } else {
+                    twemoji.parse(target);
                 }
             }
         }
+        
+        if (needsInputParse) {
+            parseMsgInWithCaret();
+        }
     });
-    emojiObserver.observe(document.body, { childList: true, subtree: true });
+    
+    emojiObserver.observe(document.body, { 
+        childList: true, 
+        subtree: true,
+        characterData: true
+    });
 }
 
 // Global click handler to dismiss mobile dropdowns when clicking outside

@@ -5,3 +5,7 @@ werkzeug==3.0.1
 pytz==2024.1
 eventlet==0.40.4
 simple-websocket==1.1.0
+customtkinter==5.2.1
+pillow==10.1.0
+pystray==0.19.5
+tkwebview2==0.0.3
