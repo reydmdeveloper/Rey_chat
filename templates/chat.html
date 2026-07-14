@@ -329,14 +329,14 @@
         padding: 6px !important;
         cursor: pointer !important;
         color: var(--text-secondary) !important;
-        font-size: 15px !important;
+        font-size: 17px !important; /* Increased from 15px */
         border-radius: 10px !important;
         transition: all 0.2s ease !important;
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
-        width: 34px !important;
-        height: 34px !important;
+        width: 38px !important; /* Increased from 34px */
+        height: 38px !important; /* Increased from 34px */
     }
     .emoji-tab-btn:hover {
         color: var(--text-main) !important;
@@ -349,11 +349,11 @@
     .emoji-btn-item {
         background: transparent !important;
         border: none !important;
-        font-size: 20px !important;
+        font-size: 22px !important; /* Increased from 20px */
         cursor: pointer !important;
         border-radius: 8px !important;
-        width: 36px !important;
-        height: 36px !important;
+        width: 40px !important; /* Increased from 36px */
+        height: 40px !important; /* Increased from 36px */
         display: flex !important;
         align-items: center !important;
         justify-content: center !important;
@@ -1590,16 +1590,20 @@
     color: #8696a0; /* WhatsApp dark mode icon color */
     font-size: 20px;
     cursor: pointer;
-    padding: 6px;
+    padding: 8px; /* Increased from 6px */
     display: flex;
     align-items: center;
     justify-content: center;
-    transition: color 0.15s, transform 0.1s;
+    transition: color 0.15s, transform 0.1s, background 0.15s;
     outline: none;
     flex-shrink: 0;
+    width: 42px; /* Set fixed size for larger touch area */
+    height: 42px;
+    border-radius: 50%;
 }
 .whatsapp-pill-btn:hover {
-    color: #aebac1;
+    color: #e9edef;
+    background: rgba(255, 255, 255, 0.08); /* Premium hover background glow */
     transform: scale(1.05);
 }
 
@@ -1611,14 +1615,18 @@
     color: #e9edef !important;
     outline: none !important;
     font-family: inherit;
-    font-size: 15px !important;
+    font-size: 16.5px !important; /* Larger text makes caret larger and prevents WebView autofocus zoom glitches */
     min-height: 24px !important;
     max-height: 120px !important; /* Allow growing */
     overflow-y: auto !important;
     box-sizing: border-box;
     caret-color: #00adb5 !important; /* Vibrant caret color matching our theme */
-    line-height: 20px;
+    line-height: 24px; /* Increased line-height for a taller caret */
     word-break: break-word;
+}
+#msgIn::selection {
+    background: rgba(0, 173, 181, 0.3) !important;
+    color: #ffffff !important;
 }
 #msgIn:empty::before {
     content: attr(placeholder);

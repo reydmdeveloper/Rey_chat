@@ -4203,7 +4203,7 @@ def on_join(data):
                 if len(parts) == 3 and parts[0] == 'chat':
                     uid1 = int(parts[1])
                     uid2 = int(parts[2])
-                    recipient_id = uid2 if user_id == uid1 else uid1
+                    recipient_id = uid2 if int(user_id) == uid1 else uid1
                     
                     cur.execute("""
                         UPDATE messages 
@@ -4250,7 +4250,7 @@ def _is_conversation_participant(user_id, room):
     # Direct messages: chat_<a>_<b> — user must be one of the two ids.
     if len(parts) == 3 and parts[0] == 'chat':
         try:
-            return user_id in (int(parts[1]), int(parts[2]))
+            return int(user_id) in (int(parts[1]), int(parts[2]))
         except (ValueError, TypeError):
             return False
     # Groups: group_<id> — user must be a member.
@@ -4300,7 +4300,7 @@ def handle_message(data):
     if len(parts) == 3 and parts[0] == 'chat':
         uid1 = int(parts[1])
         uid2 = int(parts[2])
-        recipient_id = uid2 if session['user_id'] == uid1 else uid1
+        recipient_id = uid2 if int(session['user_id']) == uid1 else uid1
         recipient_ids = [recipient_id]
         
         # Check if recipient is online
@@ -4320,7 +4320,7 @@ def handle_message(data):
         try:
             gid = int(parts[1])
             cur.execute("SELECT user_id FROM chat_group_members WHERE group_id = %s", (gid,))
-            recipient_ids = [r["user_id"] for r in cur.fetchall() if r["user_id"] != session['user_id']]
+            recipient_ids = [r["user_id"] for r in cur.fetchall() if int(r["user_id"]) != int(session['user_id'])]
         except Exception:
             recipient_ids = []
     
