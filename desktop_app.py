@@ -22,6 +22,71 @@ from tkinter import messagebox
 from PIL import Image
 import pystray
 import tkwebview2 as tkweb
+import tkwebview2.tkwebview2 as tk
+from uuid import uuid4
+
+# ─── MONKEYPATCH TKWEBVIEW2 FOR PROFILE COOKIE ISOLATION ────────────────
+# By default, WebView2 shares session cookies across all instances on the same PC.
+# This patch forces a unique User Data Folder profile for each running instance.
+original_webview2_init = tk.WebView2.__init__
+
+def patched_webview2_init(self, parent, width: int, height: int, url: str = '', **kw):
+    # Initialize CTkFrame parent class
+    ctk.CTkFrame.__init__(self, parent, width=width, height=height, **kw)
+    
+    # Establish a unique user profile cache path
+    appdata = os.getenv("LOCALAPPDATA")
+    if not appdata:
+        appdata = os.path.expanduser("~\\AppData\\Local")
+    
+    # Clean up old unused profile caches on startup
+    try:
+        profiles_root = os.path.join(appdata, "Programs", "ReydmChat", "profiles")
+        if os.path.exists(profiles_root):
+            for item in os.listdir(profiles_root):
+                p_path = os.path.join(profiles_root, item)
+                if os.path.isdir(p_path):
+                    shutil.rmtree(p_path, ignore_errors=True)
+    except Exception:
+        pass
+        
+    profile_dir = os.path.join(appdata, "Programs", "ReydmChat", "profiles", f"profile_{uuid4().hex[:8]}")
+    os.makedirs(profile_dir, exist_ok=True)
+    
+    from tkwebview2.tkwebview2 import Control, Window, windows, EdgeChrome
+    import win32gui as user32
+    
+    control = Control()
+    uid = 'master' if len(windows) == 0 else 'child_' + uuid4().hex[:8]
+    window = Window(uid, str(id(self)), url=None, html=None, js_api=None, width=width, height=height, x=None, y=None,
+                  resizable=True, fullscreen=False, min_size=(200, 100), hidden=False,
+                  frameless=False, easy_drag=True,
+                  minimized=False, on_top=False, confirm_close=False, background_color='#FFFFFF',
+                  transparent=False, text_select=True, localization=None,
+                  zoomable=True, draggable=True, vibrancy=False)
+    self.window = window
+    
+    # Pass our custom profile_dir cache instead of None to isolate session state
+    self.web_view = EdgeChrome(control, window, profile_dir)
+    self.control = control
+    self.web = self.web_view.web_view
+    windows.append(window)
+    self.width = width
+    self.height = height
+    self.parent = parent
+    self.chwnd = int(str(self.control.Handle))
+    user32.SetParent(self.chwnd, self.winfo_id())
+    user32.MoveWindow(self.chwnd, 0, 0, width, height, True)
+    self.loaded = window.events.loaded
+    
+    # Call name-mangled setup functions
+    self._WebView2__go_bind()
+    if url != '':
+        self.load_url(url)
+    self.core = None
+    self.web.CoreWebView2InitializationCompleted += self._WebView2__load_core
+
+tk.WebView2.__init__ = patched_webview2_init
 
 
 def get_install_dir():
