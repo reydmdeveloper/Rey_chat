@@ -4185,53 +4185,58 @@ def handle_change_status(data):
 
 @socketio.on('join')
 def on_join(data):
-    room = data['conversation_id']
-    sid = request.sid
-    user_id = session.get('user_id')
-    
-    join_room(room)
-    
-    if user_id:
-        user_active_room[sid] = room
+    try:
+        room = data['conversation_id']
+        sid = request.sid
+        user_id = session.get('user_id')
         
-        parts = room.split('_')
+        join_room(room)
         
-        conn = get_db()
-        if conn:
-            cur = conn.cursor()
-            try:
-                if len(parts) == 3 and parts[0] == 'chat':
-                    uid1 = int(parts[1])
-                    uid2 = int(parts[2])
-                    recipient_id = uid2 if int(user_id) == uid1 else uid1
-                    
-                    cur.execute("""
-                        UPDATE messages 
-                        SET status = 'read', read_at = NOW()
-                        WHERE conversation_id = %s AND sender_id = %s AND status != 'read'
-                    """, (room, recipient_id))
-                    conn.commit()
-                    emit('messages_read', {'conversation_id': room, 'reader_id': user_id}, room=room)
-                elif len(parts) == 2 and parts[0] == 'group':
-                    group_id = int(parts[1])
-                    cur.execute("""
-                        UPDATE chat_group_members 
-                        SET last_read_at = CURRENT_TIMESTAMP 
-                        WHERE group_id = %s AND user_id = %s
-                    """, (group_id, user_id))
-                    # Record per-message read receipts for this group member
-                    cur.execute("""
-                        INSERT IGNORE INTO message_read_receipts (message_id, user_id, read_at)
-                        SELECT m.id, %s, NOW()
-                        FROM messages m
-                        WHERE m.conversation_id = %s AND m.sender_id != %s
-                    """, (user_id, f"group_{group_id}", user_id))
-                    conn.commit()
-            except Exception as e:
-                print("Error updating read statuses:", e)
-            finally:
-                cur.close()
-                conn.close()
+        if user_id:
+            user_active_room[sid] = room
+            
+            parts = room.split('_')
+            
+            conn = get_db()
+            if conn:
+                cur = conn.cursor()
+                try:
+                    if len(parts) == 3 and parts[0] == 'chat':
+                        uid1 = int(parts[1])
+                        uid2 = int(parts[2])
+                        recipient_id = uid2 if int(user_id) == uid1 else uid1
+                        
+                        cur.execute("""
+                            UPDATE messages 
+                            SET status = 'read', read_at = NOW()
+                            WHERE conversation_id = %s AND sender_id = %s AND status != 'read'
+                        """, (room, recipient_id))
+                        conn.commit()
+                        emit('messages_read', {'conversation_id': room, 'reader_id': user_id}, room=room)
+                    elif len(parts) == 2 and parts[0] == 'group':
+                        group_id = int(parts[1])
+                        cur.execute("""
+                            UPDATE chat_group_members 
+                            SET last_read_at = CURRENT_TIMESTAMP 
+                            WHERE group_id = %s AND user_id = %s
+                        """, (group_id, user_id))
+                        # Record per-message read receipts for this group member
+                        cur.execute("""
+                            INSERT IGNORE INTO message_read_receipts (message_id, user_id, read_at)
+                            SELECT m.id, %s, NOW()
+                            FROM messages m
+                            WHERE m.conversation_id = %s AND m.sender_id != %s
+                        """, (user_id, f"group_{group_id}", user_id))
+                        conn.commit()
+                except Exception as e:
+                    print("Error updating read statuses in database:", e)
+                finally:
+                    cur.close()
+                    conn.close()
+    except Exception as e:
+        import traceback
+        print("❌ Error in on_join socket event:")
+        traceback.print_exc()
 
 @socketio.on('typing')
 def on_typing(data):
@@ -4277,116 +4282,125 @@ def _is_conversation_participant(user_id, room):
 
 @socketio.on('send_message')
 def handle_message(data):
-    user_id = session.get('user_id')
-    room = data.get('conversation_id')
+    try:
+        user_id = session.get('user_id')
+        room = data.get('conversation_id')
 
-    # Authorization: only participants may post to a conversation.
-    if not _is_conversation_participant(user_id, room):
-        return
+        # Authorization: only participants may post to a conversation.
+        if not _is_conversation_participant(user_id, room):
+            print(f"⚠️ Auth failed in handle_message: user_id={user_id}, room={room}")
+            return
 
-    conn = get_db()
-    cur = conn.cursor(dictionary=True)
-    
-    reply_to_id = data.get('reply_to_id')
-    file_url = data.get('file_url')
-    is_forwarded = 1 if data.get('is_forwarded') else 0
-    if file_url:
-        if file_url.startswith("/api/chat/download/"):
-            file_url = file_url[len("/api/chat/download/"):]
+        conn = get_db()
+        if not conn:
+            print("⚠️ Database connection failed in handle_message")
+            return
             
-    status = 'sent'
-    recipient_ids = []
-    parts = room.split('_')
-    if len(parts) == 3 and parts[0] == 'chat':
-        uid1 = int(parts[1])
-        uid2 = int(parts[2])
-        recipient_id = uid2 if int(session['user_id']) == uid1 else uid1
-        recipient_ids = [recipient_id]
+        cur = conn.cursor(dictionary=True)
         
-        # Check if recipient is online
-        if recipient_id in online_users:
-            recipient_sids = online_users[recipient_id]
-            is_in_room = False
-            for sid in recipient_sids:
-                if user_active_room.get(sid) == room:
-                    is_in_room = True
-                    break
-            if is_in_room:
-                status = 'read'
-            else:
-                status = 'delivered'
-    elif parts[0] == 'group' and len(parts) == 2:
-        # Notify all group members (except the sender) in their personal rooms.
-        try:
-            gid = int(parts[1])
-            cur.execute("SELECT user_id FROM chat_group_members WHERE group_id = %s", (gid,))
-            recipient_ids = [r["user_id"] for r in cur.fetchall() if int(r["user_id"]) != int(session['user_id'])]
-        except Exception:
-            recipient_ids = []
-    
-    if status == 'read':
-        cur.execute(
-            "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status, delivered_at, read_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
-            (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
-        )
-    elif status == 'delivered':
-        cur.execute(
-            "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status, delivered_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
-            (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
-        )
-    else:
-        cur.execute(
-            "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
-            (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
-        )
-    msg_id = cur.lastrowid
-    conn.commit()
-    
-    reply_text = None
-    reply_type = None
-    reply_sender_name = None
-    
-    if reply_to_id:
-        cur.execute("""
-            SELECT r.message_text, r.message_type, u.full_name 
-            FROM messages r 
-            JOIN users u ON r.sender_id = u.id 
-            WHERE r.id = %s
-        """, (reply_to_id,))
-        r_msg = cur.fetchone()
-        if r_msg:
-            reply_text = r_msg["message_text"]
-            reply_type = r_msg["message_type"]
-            reply_sender_name = r_msg["full_name"]
+        reply_to_id = data.get('reply_to_id')
+        file_url = data.get('file_url')
+        is_forwarded = 1 if data.get('is_forwarded') else 0
+        if file_url:
+            if file_url.startswith("/api/chat/download/"):
+                file_url = file_url[len("/api/chat/download/"):]
+                
+        status = 'sent'
+        recipient_ids = []
+        parts = room.split('_')
+        if len(parts) == 3 and parts[0] == 'chat':
+            uid1 = int(parts[1])
+            uid2 = int(parts[2])
+            recipient_id = uid2 if int(session['user_id']) == uid1 else uid1
+            recipient_ids = [recipient_id]
+            
+            # Check if recipient is online
+            if recipient_id in online_users:
+                recipient_sids = online_users[recipient_id]
+                is_in_room = False
+                for sid in recipient_sids:
+                    if user_active_room.get(sid) == room:
+                        is_in_room = True
+                        break
+                if is_in_room:
+                    status = 'read'
+                else:
+                    status = 'delivered'
+        elif parts[0] == 'group' and len(parts) == 2:
+            # Notify all group members (except the sender) in their personal rooms.
+            try:
+                gid = int(parts[1])
+                cur.execute("SELECT user_id FROM chat_group_members WHERE group_id = %s", (gid,))
+                recipient_ids = [r["user_id"] for r in cur.fetchall() if int(r["user_id"]) != int(session['user_id'])]
+            except Exception:
+                recipient_ids = []
+        
+        if status == 'read':
+            cur.execute(
+                "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status, delivered_at, read_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW(), NOW())",
+                (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
+            )
+        elif status == 'delivered':
+            cur.execute(
+                "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status, delivered_at) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s, NOW())",
+                (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
+            )
+        else:
+            cur.execute(
+                "INSERT INTO messages (conversation_id, sender_id, message_text, message_type, file_name, file_url, reply_to_id, is_forwarded, status) VALUES (%s, %s, %s, %s, %s, %s, %s, %s, %s)",
+                (room, session['user_id'], data.get('text', ''), data.get('type', 'text'), data.get('file_name'), file_url, reply_to_id, is_forwarded, status)
+            )
+        msg_id = cur.lastrowid
+        conn.commit()
+        
+        reply_text = None
+        reply_type = None
+        reply_sender_name = None
+        
+        if reply_to_id:
+            cur.execute("""
+                SELECT r.message_text, r.message_type, u.full_name 
+                FROM messages r 
+                JOIN users u ON r.sender_id = u.id 
+                WHERE r.id = %s
+            """, (reply_to_id,))
+            r_msg = cur.fetchone()
+            if r_msg:
+                reply_text = r_msg["message_text"]
+                reply_type = r_msg["message_type"]
+                reply_sender_name = r_msg["full_name"]
 
-    cur.close()
-    conn.close()
+        cur.close()
+        conn.close()
 
-    payload = {
-        "id": msg_id,
-        "conversation_id": room,
-        "sender_name": session['full_name'],
-        "sender_id": session['user_id'],
-        "message_text": data.get('text', ''),
-        "message_type": data.get('type', 'text'),
-        "file_name": data.get('file_name'),
-        "file_url": f"/api/chat/download/{file_url}" if file_url else None,
-        "reply_to_id": reply_to_id,
-        "reply_text": reply_text,
-        "reply_type": reply_type,
-        "reply_sender_name": reply_sender_name,
-        "is_forwarded": is_forwarded,
-        "status": status,
-        "is_edited": 0,
-        "reactions": [],
-        "created_at": now_ist().strftime("%Y-%m-%d %H:%M:%S")
-    }
-    # Deliver to everyone currently viewing the conversation...
-    emit('new_message', payload, room=room)
-    # ...and to each recipient's personal room so chats they haven't opened still update live.
-    # The client de-duplicates by message id, so receiving it twice is harmless.
-    for rid in recipient_ids:
-        emit('new_message', payload, room=f"user_{rid}")
+        payload = {
+            "id": msg_id,
+            "conversation_id": room,
+            "sender_name": session['full_name'],
+            "sender_id": session['user_id'],
+            "message_text": data.get('text', ''),
+            "message_type": data.get('type', 'text'),
+            "file_name": data.get('file_name'),
+            "file_url": f"/api/chat/download/{file_url}" if file_url else None,
+            "reply_to_id": reply_to_id,
+            "reply_text": reply_text,
+            "reply_type": reply_type,
+            "reply_sender_name": reply_sender_name,
+            "is_forwarded": is_forwarded,
+            "status": status,
+            "is_edited": 0,
+            "reactions": [],
+            "created_at": now_ist().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        # Deliver to everyone currently viewing the conversation...
+        emit('new_message', payload, room=room)
+        # ...and to each recipient's personal room so chats they haven't opened still update live.
+        for rid in recipient_ids:
+            emit('new_message', payload, room=f"user_{rid}")
+    except Exception as e:
+        import traceback
+        print("❌ Error in handle_message socket event:")
+        traceback.print_exc()
 
 @socketio.on('edit_message')
 def handle_edit_message(data):
