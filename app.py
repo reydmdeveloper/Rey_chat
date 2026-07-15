@@ -3336,11 +3336,22 @@ def open_file(filename):
         display_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
         return jsonify({"success": False, "message": f"File not found at {display_path}"}), 404
 
+    stream = request.args.get('stream', '0') == '1'
+
+    # If running locally on Windows and not forcing stream, try starting the file natively
+    if not stream and os.name == 'nt':
+        try:
+            os.startfile(file_path)
+            return jsonify({"success": True, "message": "File opened successfully"})
+        except Exception:
+            pass
+
+    # Otherwise stream the file with inline headers so the browser renders it directly
     try:
-        os.startfile(file_path)
-        return jsonify({"success": True, "message": "File opened successfully"})
+        base = os.path.basename(file_path)
+        return send_file(file_path, as_attachment=False, download_name=base)
     except Exception as e:
-        return jsonify({"success": False, "message": f"Failed to open file: {str(e)}"}), 500
+        return f"Failed to stream file: {str(e)}", 500
 
 @app.route("/api/chat/save/<path:filename>")
 @login_required

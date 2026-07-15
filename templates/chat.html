@@ -3201,12 +3201,43 @@ socket.on('user_status_changed', function(data) {
 
     function openFileLocal(fileUrl) {
         if (!fileUrl) return;
-        // Intercepted by PyQt QWebEnginePage acceptNavigationRequest or Flutter WebView onNavigationRequest
+        
+        // Detect if running inside the desktop app wrapper (WebView2, QtWebEngine, or Flutter channel)
+        const isDesktopApp = (window.chrome && window.chrome.webview) || 
+                              window.navigator.userAgent.indexOf('QtWebEngine') !== -1 || 
+                              window.FlutterChannel !== undefined;
+        
         const openUrl = fileUrl.replace('/api/chat/download/', '/api/chat/open/');
-        if (window.navigator.userAgent.indexOf('QtWebEngine') !== -1 || window.FlutterChannel !== undefined) {
-            window.location.href = openUrl;
+        
+        if (isDesktopApp) {
+            // Desktop App wrapper: Trigger native local file associations
+            fetch(openUrl)
+                .then(res => {
+                    const contentType = res.headers.get("content-type");
+                    if (contentType && contentType.includes("application/json")) {
+                        return res.json();
+                    } else {
+                        // Bypassed/Fallback stream
+                        window.open(openUrl + '?stream=1', '_blank');
+                        return { success: true, bypassed: true };
+                    }
+                })
+                .then(data => {
+                    if (data && !data.bypassed) {
+                        if (data.success) {
+                            showToast("Opening file locally...", "success");
+                        } else {
+                            window.open(openUrl + '?stream=1', '_blank');
+                        }
+                    }
+                })
+                .catch(err => {
+                    console.error("Open file error:", err);
+                    window.open(openUrl + '?stream=1', '_blank');
+                });
         } else {
-            window.open(openUrl, '_blank');
+            // Web Browser: Open/stream the file inline directly in a new tab
+            window.open(openUrl + '?stream=1', '_blank');
         }
     }
 
