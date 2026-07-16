@@ -377,6 +377,11 @@
     .mention-item:hover {
         background: rgba(255,255,255,0.1);
     }
+    .mention-item.active {
+        background: rgba(0, 173, 181, 0.25);
+        color: var(--primary);
+        font-weight: 600;
+    }
     
     #typing-indicator {
         position: absolute;
@@ -5121,11 +5126,47 @@ async function clearStorage() {
     const msgIn = document.getElementById('msgIn');
 
     msgIn.addEventListener('keydown', function(e) {
+        if (mentionDropdown.style.display === 'block' && mentionMatches.length > 0) {
+            if (e.key === 'ArrowDown') {
+                e.preventDefault();
+                activeMentionIndex = (activeMentionIndex + 1) % mentionMatches.length;
+                renderMentionDropdown();
+                scrollMentionActiveIntoView();
+                return;
+            }
+            if (e.key === 'ArrowUp') {
+                e.preventDefault();
+                activeMentionIndex = (activeMentionIndex - 1 + mentionMatches.length) % mentionMatches.length;
+                renderMentionDropdown();
+                scrollMentionActiveIntoView();
+                return;
+            }
+            if (e.key === 'Enter' || e.key === 'Tab') {
+                e.preventDefault();
+                const sel = mentionMatches[activeMentionIndex];
+                if (sel) insertMention(sel.full_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'"));
+                return;
+            }
+            if (e.key === 'Escape') {
+                e.preventDefault();
+                mentionMatches = [];
+                activeMentionIndex = -1;
+                mentionDropdown.style.display = 'none';
+                return;
+            }
+        }
         if (e.key === 'Enter' && !e.shiftKey) {
             e.preventDefault();
             sendMsg();
         }
     });
+
+    function scrollMentionActiveIntoView() {
+        const items = mentionDropdown.querySelectorAll('.mention-item');
+        if (items[activeMentionIndex]) {
+            items[activeMentionIndex].scrollIntoView({ block: 'nearest' });
+        }
+    }
     
     emojiBtn.addEventListener('click', () => {
         emojiPicker.style.display = emojiPicker.style.display === 'block' ? 'none' : 'block';
@@ -5405,6 +5446,18 @@ async function clearStorage() {
 
     // Mentions and Auto-resize logic
     const mentionDropdown = document.getElementById('mentionDropdown');
+    let mentionMatches = [];
+    let activeMentionIndex = -1;
+
+    function renderMentionDropdown() {
+        mentionDropdown.innerHTML = mentionMatches.map((u, i) => {
+            const jsName = u.full_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
+            const active = i === activeMentionIndex ? ' active' : '';
+            return `<div class="mention-item${active}" data-name="${jsName}" onclick="insertMention('${jsName}')">${escapeHtml(u.full_name)}</div>`;
+        }).join('');
+        mentionDropdown.style.display = mentionMatches.length > 0 ? 'block' : 'none';
+    }
+
 function updateSendBtnState() {
     const inp = document.getElementById('msgIn');
     const micBtn = document.getElementById('micBtn');
@@ -5442,17 +5495,12 @@ function updateSendBtnState() {
         const lastWord = val.split(' ').pop();
         if (currentRoom && String(currentRoom).startsWith('group_') && lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
-            const matches = currentGroupMembers.filter(u => u.full_name.toLowerCase().includes(query));
-            if (matches.length > 0) {
-                mentionDropdown.innerHTML = matches.map(u => {
-                    const jsName = u.full_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                    return `<div class="mention-item" onclick="insertMention('${jsName}')">${escapeHtml(u.full_name)}</div>`;
-                }).join('');
-                mentionDropdown.style.display = 'block';
-            } else {
-                mentionDropdown.style.display = 'none';
-            }
+            mentionMatches = currentGroupMembers.filter(u => u.full_name.toLowerCase().includes(query));
+            activeMentionIndex = mentionMatches.length > 0 ? 0 : -1;
+            renderMentionDropdown();
         } else {
+            mentionMatches = [];
+            activeMentionIndex = -1;
             mentionDropdown.style.display = 'none';
         }
     });
@@ -5463,7 +5511,10 @@ function updateSendBtnState() {
         words.pop();
         words.push(`@${name} `);
         msgIn.value = words.join(' ');
+        mentionMatches = [];
+        activeMentionIndex = -1;
         mentionDropdown.style.display = 'none';
+        updateSendBtnState();
         msgIn.focus();
     }
 
