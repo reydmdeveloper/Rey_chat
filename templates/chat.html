@@ -3583,6 +3583,13 @@ socket.on('user_status_changed', function(data) {
                     safeText = safeText.split(mentionStr).join(`<span class="${mentionClass}" style="background: rgba(37,211,102,0.15); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-weight: 600; cursor: pointer;" onclick="openConv(${u.id}, '${nameAttr}')">${mentionStr}</span>`);
                 }
             });
+
+            // Detect @ALL mention (applies to everyone, including me)
+            const allMentionStr = '@ALL';
+            if (safeText.includes(allMentionStr)) {
+                hasMentionOfMe = true;
+                safeText = safeText.split(allMentionStr).join(`<span class="mention me" style="background: rgba(37,211,102,0.15); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">${allMentionStr}</span>`);
+            }
             
             if (hasMentionOfMe) {
                 msgClass += ' mention-me-highlight';
@@ -3891,7 +3898,8 @@ socket.on('user_status_changed', function(data) {
             const myUser = usersList.find(u => u.id === UID);
             if (myUser) {
                 const myMentionStr = '@' + myUser.full_name;
-                if (msg.message_text.includes(myMentionStr)) {
+                const isMentioned = msg.message_text.includes(myMentionStr) || msg.message_text.includes('@ALL');
+                if (isMentioned) {
                     mentionCounts[msg.conversation_id] = (mentionCounts[msg.conversation_id] || 0) + 1;
                     loadConversations();
                 }
@@ -5453,7 +5461,8 @@ async function clearStorage() {
         mentionDropdown.innerHTML = mentionMatches.map((u, i) => {
             const jsName = u.full_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
             const active = i === activeMentionIndex ? ' active' : '';
-            return `<div class="mention-item${active}" data-name="${jsName}" onclick="insertMention('${jsName}')">${escapeHtml(u.full_name)}</div>`;
+            const label = u.isAll ? '@ALL (Everyone)' : escapeHtml(u.full_name);
+            return `<div class="mention-item${active}" data-name="${jsName}" onclick="insertMention('${jsName}')">${label}</div>`;
         }).join('');
         mentionDropdown.style.display = mentionMatches.length > 0 ? 'block' : 'none';
     }
@@ -5496,6 +5505,10 @@ function updateSendBtnState() {
         if (currentRoom && String(currentRoom).startsWith('group_') && lastWord.startsWith('@')) {
             const query = lastWord.substring(1).toLowerCase();
             mentionMatches = currentGroupMembers.filter(u => u.full_name.toLowerCase().includes(query));
+            // Add a synthetic @ALL option (always matches when query is empty or contains 'all')
+            if ('all'.includes(query) || query === '') {
+                mentionMatches = [{ id: 'ALL', full_name: 'ALL', isAll: true }].concat(mentionMatches);
+            }
             activeMentionIndex = mentionMatches.length > 0 ? 0 : -1;
             renderMentionDropdown();
         } else {
