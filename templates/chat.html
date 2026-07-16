@@ -3015,6 +3015,7 @@ socket.on('user_status_changed', function(data) {
     let activeContextMsgObj = null;
 
     function showContextMenu(x, y, msg) {
+        if (!msg || !msg.id) return;
         const menu = document.getElementById('customContextMenu');
         activeContextMsgId = msg.id;
         activeContextMsgObj = msg;
@@ -3047,12 +3048,12 @@ socket.on('user_status_changed', function(data) {
         document.getElementById('ctxDelete').style.display = 'flex';
         
         let canEdit = false;
-        if (!isDeleted && isMine && msg.message_type === 'text') {
-            const msgTime = new Date(msg.created_at.replace(/-/g, '/'));
+        if (!isDeleted && isMine && msg.message_type === 'text' && msg.created_at) {
+            const msgTime = new Date(String(msg.created_at).replace(/-/g, '/'));
             const now = new Date();
             const diffMs = now - msgTime;
             const diffMins = diffMs / 1000 / 60;
-            if (diffMins >= 0 && diffMins < 15) {
+            if (!isNaN(diffMs) && diffMins >= 0 && diffMins < 15) {
                 canEdit = true;
             }
         }
