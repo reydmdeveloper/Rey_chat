@@ -354,6 +354,30 @@
         padding: 2px 5px;
         border-radius: 4px;
     }
+    /* Theme-aware mention token used inside message bubbles */
+    .chat-mention {
+        font-weight: 700;
+        padding: 2px 6px;
+        border-radius: 4px;
+        color: var(--primary);
+        background: rgba(37, 211, 102, 0.15);
+        border: 1px solid rgba(37, 211, 102, 0.35);
+    }
+    .chat-mention.me {
+        color: #063b1f;
+        background: rgba(37, 211, 102, 0.35);
+        border-color: rgba(37, 211, 102, 0.6);
+    }
+    :root[data-theme="light"] .chat-mention {
+        color: #0a6b39;
+        background: rgba(37, 211, 102, 0.18);
+        border-color: rgba(37, 211, 102, 0.45);
+    }
+    :root[data-theme="light"] .chat-mention.me {
+        color: #04331a;
+        background: rgba(37, 211, 102, 0.38);
+        border-color: rgba(37, 211, 102, 0.7);
+    }
     .mention-dropdown {
         position: absolute;
         bottom: 80px;
@@ -1994,11 +2018,20 @@
         <div id="pinnedBanner" style="display: none; background: rgba(255,255,255,0.05); border-left: 4px solid var(--primary); padding: 8px 15px; font-size: 13px; color: white; cursor: pointer; border-bottom: 1px solid var(--border-color);" onclick="scrollToPinned()">
             <i class="fa-solid fa-thumbtack" style="color: var(--primary); margin-right: 5px;"></i> <span id="pinnedText"></span>
         </div>
+        <div id="groupNoteBanner" style="display: none; background: rgba(37,211,102,0.08); border-left: 4px solid var(--primary); padding: 8px 15px; font-size: 13px; color: var(--text-main); border-bottom: 1px solid var(--border-color);">
+            <i class="fa-solid fa-thumbtack" style="color: var(--primary); margin-right: 5px;"></i> <span id="groupNoteText"></span>
+        </div>
         <!-- Chat Message Search Panel -->
         <div id="chatSearchPanel" style="display: none; padding: 10px 20px; background: rgba(0,0,0,0.15); border-bottom: 1px solid var(--border-color); align-items: center; gap: 10px; z-index: 10; box-sizing: border-box; width: 100%;">
             <i class="fa-solid fa-magnifying-glass" style="color: var(--text-muted); font-size: 14px;"></i>
             <input type="text" id="chatSearchInput" autocomplete="new-password" autocorrect="off" autocapitalize="none" spellcheck="false" placeholder="Search message text (Ctrl+F)..." style="flex:1; background: transparent; border: none; color: white; outline: none; font-size: 13.5px; font-family: inherit;">
             <i class="fa-solid fa-times" onclick="toggleChatSearch()" style="cursor: pointer; color: var(--text-muted);" title="Close Search"></i>
+        </div>
+
+        <div id="msgFilterBar" style="display: none; padding: 8px 16px; background: rgba(37,211,102,0.08); border-bottom: 1px solid var(--border-color); align-items: center; gap: 10px; z-index: 10; box-sizing: border-box; width: 100%; font-size: 13px; color: var(--text-main);">
+            <i class="fa-solid fa-filter" style="color: var(--primary);"></i>
+            <span id="msgFilterLabel" style="flex:1;"></span>
+            <button onclick="clearMessageFilter()" style="background: none; border: 1px solid var(--glass-border); color: var(--text-secondary); padding: 4px 10px; border-radius: 6px; font-size: 12px; cursor: pointer;">Clear</button>
         </div>
 
         <div id="msgArea" class="messages-container" style="display: none;">
@@ -3383,6 +3416,9 @@ socket.on('user_status_changed', function(data) {
     let currentRoom = null;
     let typingTimer;
 
+    // Message filter state (group chat)
+    let activeFilter = { type: 'none', value: null }; // type: none | member | link
+
     // Pagination state for the current chat room
     let oldestMessageId = null;
     let hasMoreMessages = true;
@@ -3411,6 +3447,9 @@ socket.on('user_status_changed', function(data) {
         hasMoreMessages = true;
         isLoadingMore = false;
         currentMentionScrollIndex = 0;
+
+        // Reset any active message filter when switching rooms
+        activeFilter = { type: 'none', value: null };
         
         if (String(currentRoom).startsWith('group_')) {
             try {
@@ -3476,6 +3515,7 @@ socket.on('user_status_changed', function(data) {
             closeGroupInfo();
             document.getElementById('voiceCallBtn').style.display = 'block';
             document.getElementById('videoCallBtn').style.display = 'block';
+            document.getElementById('groupNoteBanner').style.display = 'none';
         }
         closeMsgInfo();
         
@@ -3517,6 +3557,12 @@ socket.on('user_status_changed', function(data) {
         } catch (err) {
             console.error("Failed to load chat history", err);
             document.getElementById('msgArea').innerHTML = '<div style="display:flex; justify-content:center; align-items:center; width:100%; height:100%; color:var(--text-muted);">Failed to load messages.</div>';
+        }
+
+        // Show group note banner and re-apply any filter for groups
+        if (String(currentRoom).startsWith('group_')) {
+            showGroupNoteBanner();
+            applyMessageFilter();
         }
         
         // Scroll to mention if present, else bottom
@@ -3579,9 +3625,9 @@ socket.on('user_status_changed', function(data) {
                     if (u.id === UID) {
                         hasMentionOfMe = true;
                     }
-                    const mentionClass = u.id === UID ? 'mention me' : 'mention';
+                    const mentionClass = u.id === UID ? 'chat-mention me' : 'chat-mention';
                     const nameAttr = u.full_name.replace(/\\/g, '\\\\').replace(/'/g, "\\'");
-                    safeText = safeText.split(mentionStr).join(`<span class="${mentionClass}" style="background: rgba(37,211,102,0.15); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-weight: 600; cursor: pointer;" onclick="openConv(${u.id}, '${nameAttr}')">${mentionStr}</span>`);
+                    safeText = safeText.split(mentionStr).join(`<span class="${mentionClass}" onclick="openConv(${u.id}, '${nameAttr}')">${mentionStr}</span>`);
                 }
             });
 
@@ -3589,7 +3635,7 @@ socket.on('user_status_changed', function(data) {
             const allMentionStr = '@ALL';
             if (safeText.includes(allMentionStr)) {
                 hasMentionOfMe = true;
-                safeText = safeText.split(allMentionStr).join(`<span class="mention me" style="background: rgba(37,211,102,0.15); color: var(--primary); padding: 2px 6px; border-radius: 4px; font-weight: 600;">${allMentionStr}</span>`);
+                safeText = safeText.split(allMentionStr).join(`<span class="chat-mention me">${allMentionStr}</span>`);
             }
             
             if (hasMentionOfMe) {
@@ -3699,7 +3745,7 @@ socket.on('user_status_changed', function(data) {
         }
         
         const msgHtml = `
-            <div class="msg-wrapper ${msgClass}" id="msg-wrapper-${msg.id}" ${isDeleted ? '' : `ondblclick="initReply(${msg.id})"`}>
+            <div class="msg-wrapper ${msgClass}" id="msg-wrapper-${msg.id}" data-sender-id="${msg.sender_id}" ${isDeleted ? '' : `ondblclick="initReply(${msg.id})"`}>
                 <div style="display: flex; align-items: center; gap: 10px; width: 100%;">
                     <div class="msg-select-checkbox" style="display: ${isSelectionMode && !isDeleted ? 'flex' : 'none'}; align-items: center; justify-content: center; cursor: pointer; user-select: none;" onclick="toggleSelectMessage(${msg.id}, event)">
                         <input type="checkbox" class="msg-select-cb" data-msg-id="${msg.id}" style="width: 18px; height: 18px; cursor: pointer; accent-color: var(--primary);" ${selectedMessageIds.has(msg.id) ? 'checked' : ''} onclick="handleCheckboxClick(${msg.id}, event)">
@@ -3925,6 +3971,20 @@ socket.on('user_status_changed', function(data) {
             // Toggle @ scroll button if mentions exist in active chat feed
             const mentionsCount = document.querySelectorAll('#msgArea .mention.me').length;
             document.getElementById('scrollMentionBtn').style.display = mentionsCount > 0 ? 'flex' : 'none';
+
+            // Re-apply active filter to the newly added message
+            if (activeFilter.type !== 'none') {
+                const w = document.getElementById('msg-wrapper-' + msg.id);
+                if (w) {
+                    if (activeFilter.type === 'member') {
+                        w.style.display = (String(w.getAttribute('data-sender-id')) === String(activeFilter.value)) ? '' : 'none';
+                    } else if (activeFilter.type === 'link') {
+                        const bubble = w.querySelector('.msg-bubble');
+                        const text = bubble ? bubble.textContent.trim() : '';
+                        w.style.display = /^\s*https?:\/\//i.test(text) ? '' : 'none';
+                    }
+                }
+            }
         } else {
             // Increment Unread Badge for this room if we aren't viewing it
             if (item) {
@@ -6083,12 +6143,29 @@ function updateSendBtnState() {
                 <h2 style="margin:5px 0;font-size:20px;color:white">${escapeHtml(group.name)}</h2>
                 <div style="font-size:12px;color:var(--text-secondary)">Created at ${escapeHtml(group.created_at || '')}</div>
             </div>
-            
+
+            <div style="margin-bottom:15px; border-top: 1px solid rgba(255,255,255,0.06); padding-top: 15px;">
+                <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:8px">
+                    <strong style="color:var(--text-secondary);font-size:13px"><i class="fa-solid fa-thumbtack" style="color:var(--primary);margin-right:5px"></i>GROUP NOTE</strong>
+                    ${amIAdmin ? `<button onclick="editGroupNote()" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px">✏️ Edit</button>` : ''}
+                </div>
+                <div id="groupNoteView" style="font-size:13px;color:var(--text-main);white-space:pre-wrap;line-height:1.5;${group.note ? '' : 'color:var(--text-muted);font-style:italic;'}">${group.note ? escapeHtml(group.note) : 'No note set.'}</div>
+            </div>
+
             <div style="margin-bottom:15px">
+                <div style="display:flex;flex-direction:column;gap:8px;margin-bottom:12px">
+                    <button onclick="filterByProjectFiles()" style="background:rgba(37,211,102,0.12);border:1px solid rgba(37,211,102,0.35);color:var(--primary);padding:8px;border-radius:8px;font-size:13px;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:6px;font-weight:600">
+                        <i class="fa-solid fa-link"></i> Show Project Files (messages starting with a link)
+                    </button>
+                    <button onclick="clearMessageFilter(); closeGroupInfo();" style="background:none;border:1px solid var(--glass-border);color:var(--text-secondary);padding:8px;border-radius:8px;font-size:13px;cursor:pointer">
+                        Clear Filter
+                    </button>
+                </div>
                 <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:10px">
                     <strong style="color:var(--text-secondary);font-size:13px">${group.members.length} MEMBERS</strong>
                     ${amIAdmin ? `<button onclick="openAddGroupMemberModal(${group.id})" style="background:none;border:none;color:var(--primary);cursor:pointer;font-size:13px;display:flex;align-items:center;gap:4px">➕ Add Member</button>` : ''}
                 </div>
+                <div style="font-size:11px;color:var(--text-muted);margin-bottom:8px">Tap a member to filter their messages only.</div>
                 <div style="display:flex;flex-direction:column;gap:8px">
         `;
         
@@ -6110,7 +6187,7 @@ function updateSendBtnState() {
             }
             
             html += `
-                <div class="group-info-member" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06)">
+                <div class="group-info-member" onclick="filterByMember(${m.id})" title="Filter messages from this member" style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.06);cursor:pointer">
                     <div style="display:flex;align-items:center;gap:10px">
                         <div class="avatar" style="width:36px;height:36px;border-radius:50%;display:flex;align-items:center;justify-content:center;background:rgba(255,255,255,0.08);font-size:13px;font-weight:bold;color:white">${escapeHtml(initials)}</div>
                         <div class="member-info">
@@ -6172,6 +6249,51 @@ function updateSendBtnState() {
 
     function closeGroupInfo() {
         document.getElementById('groupInfoPanel').classList.remove('show');
+    }
+
+    function editGroupNote() {
+        const current = (document.getElementById('groupNoteView').textContent === 'No note set.') ? '' : document.getElementById('groupNoteView').textContent;
+        const note = prompt("Set a manual note to pin in this group chat:", current);
+        if (note === null) return;
+        const gId = currentRoom.split('_')[1];
+        fetch(`/api/chat/groups/${gId}/note`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ note: note })
+        })
+        .then(r => r.json())
+        .then(data => {
+            if (data.success) {
+                showToast("Group note updated.", "success");
+                openGroupInfo();
+                showGroupNoteBanner();
+            } else {
+                showToast(data.message || "Failed to update note.", "error");
+            }
+        })
+        .catch(() => showToast("An error occurred.", "error"));
+    }
+
+    function showGroupNoteBanner() {
+        const banner = document.getElementById('groupNoteBanner');
+        const text = document.getElementById('groupNoteText');
+        const isGroup = currentRoom && String(currentRoom).startsWith('group_');
+        if (!banner || !text || !isGroup) {
+            if (banner) banner.style.display = 'none';
+            return;
+        }
+        const gId = currentRoom.split('_')[1];
+        fetch(`/api/chat/groups/${gId}/info`)
+            .then(r => r.json())
+            .then(group => {
+                if (group && group.note) {
+                    text.textContent = group.note;
+                    banner.style.display = 'block';
+                } else {
+                    banner.style.display = 'none';
+                }
+            })
+            .catch(() => { banner.style.display = 'none'; });
     }
 
     function closeMsgInfo() {
@@ -6718,6 +6840,61 @@ function updateSendBtnState() {
         } else {
             showToast("No mentions found in this chat.", "info");
         }
+    }
+
+    /* ─── Message Filters (Group Chat) ─────────────────── */
+    function applyMessageFilter() {
+        const bar = document.getElementById('msgFilterBar');
+        const label = document.getElementById('msgFilterLabel');
+        const area = document.getElementById('msgArea');
+        if (!area || !bar || !label) return;
+
+        const isGroup = currentRoom && String(currentRoom).startsWith('group_');
+        if (!isGroup || activeFilter.type === 'none') {
+            bar.style.display = 'none';
+            area.querySelectorAll('.msg-wrapper').forEach(w => { w.style.display = ''; });
+            return;
+        }
+
+        bar.style.display = 'flex';
+        const wrappers = area.querySelectorAll('.msg-wrapper');
+
+        if (activeFilter.type === 'member') {
+            const member = currentGroupMembers.find(m => m.id === activeFilter.value) ||
+                           usersList.find(u => u.id === activeFilter.value);
+            const name = member ? member.full_name : 'Member';
+            label.textContent = `Showing messages from: ${name}`;
+            wrappers.forEach(w => {
+                w.style.display = (String(w.getAttribute('data-sender-id')) === String(activeFilter.value)) ? '' : 'none';
+            });
+        } else if (activeFilter.type === 'link') {
+            label.textContent = 'Showing messages that start with a link (project files)';
+            const linkRegex = /^\s*https?:\/\//i;
+            wrappers.forEach(w => {
+                const bubble = w.querySelector('.msg-bubble');
+                const text = bubble ? bubble.textContent.trim() : '';
+                w.style.display = linkRegex.test(text) ? '' : 'none';
+            });
+        }
+    }
+
+    function filterByMember(memberId) {
+        activeFilter = { type: 'member', value: memberId };
+        closeGroupInfo();
+        applyMessageFilter();
+        scrollToBottom();
+    }
+
+    function filterByProjectFiles() {
+        activeFilter = { type: 'link', value: null };
+        closeGroupInfo();
+        applyMessageFilter();
+        scrollToBottom();
+    }
+
+    function clearMessageFilter() {
+        activeFilter = { type: 'none', value: null };
+        applyMessageFilter();
     }
 
     /* ─── Auto-Scroll & Scroll-Bottom FAB ─────────────────── */

@@ -435,6 +435,12 @@ def init_db():
                 created_at DATETIME DEFAULT CURRENT_TIMESTAMP
             )
         """)
+
+        try:
+            cur.execute("ALTER TABLE chat_groups ADD COLUMN note TEXT")
+            conn.commit()
+        except Exception:
+            conn.rollback()
         
         cur.execute("""
             CREATE TABLE IF NOT EXISTS chat_group_members (
@@ -3382,7 +3388,7 @@ def save_file_dir(filename):
 def get_group_info(group_id):
     conn = get_db()
     cur = conn.cursor(dictionary=True)
-    cur.execute("SELECT id, name, created_by, created_at FROM chat_groups WHERE id = %s", (group_id,))
+    cur.execute("SELECT id, name, created_by, created_at, COALESCE(note, '') as note FROM chat_groups WHERE id = %s", (group_id,))
     group = cur.fetchone()
     if not group:
         cur.close()
@@ -3401,6 +3407,31 @@ def get_group_info(group_id):
     cur.close()
     conn.close()
     return jsonify(group)
+
+@app.route("/api/chat/groups/<int:group_id>/note", methods=["POST"])
+@login_required
+def update_group_note(group_id):
+    data = request.get_json(silent=True) or {}
+    note = data.get("note", "")
+    conn = get_db()
+    cur = conn.cursor(dictionary=True)
+    cur.execute("SELECT id, created_by FROM chat_groups WHERE id = %s", (group_id,))
+    group = cur.fetchone()
+    if not group:
+        cur.close(); conn.close()
+        return jsonify({"success": False, "message": "Group not found"}), 404
+    # Only allow admins/creator to edit the note
+    cur.execute("SELECT COALESCE(role, 'member') as role FROM chat_group_members WHERE group_id = %s AND user_id = %s", (group_id, session["user_id"]))
+    mem = cur.fetchone()
+    isAdmin = (mem and mem["role"] == "admin") or group["created_by"] == session["user_id"]
+    if not isAdmin:
+        cur.close(); conn.close()
+        return jsonify({"success": False, "message": "Only group admins can edit the note"}), 403
+    cur.execute("UPDATE chat_groups SET note = %s WHERE id = %s", (note, group_id))
+    conn.commit()
+    cur.close(); conn.close()
+    return jsonify({"success": True})
+
 
 @app.route("/api/chat/groups/<int:group_id>/members", methods=["POST"])
 @login_required
