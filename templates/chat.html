@@ -4032,7 +4032,8 @@ socket.on('user_status_changed', function(data) {
         const initials = msg.sender_name.split(' ').map(w=>w[0]).join('').substring(0,2).toUpperCase();
         const avatarHtml = msg.conversation_id.startsWith('group_') ? '👥' : initials;
         const isGroup = msg.conversation_id.startsWith('group_');
-        const senderTitle = isGroup ? `${msg.sender_name} (${msg.group_name || 'Group'})` : msg.sender_name;
+        const senderTitle = isGroup ? msg.sender_name : msg.sender_name;
+        const sourceLabel = isGroup ? `sent the message from ${msg.group_name || 'Group'}` : 'sent you a message';
 
         const bannerHtml = `
             <div id="${bannerId}" class="notif-banner" style="
@@ -4049,7 +4050,7 @@ socket.on('user_status_changed', function(data) {
                 gap: 10px;
                 pointer-events: auto;
                 transform: translateX(420px);
-                transition: transform 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.3s ease;
+                transition: transform 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275), opacity 0.5s ease;
                 opacity: 0;
                 font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
                 position: relative;
@@ -4072,7 +4073,7 @@ socket.on('user_status_changed', function(data) {
                         ">${avatarHtml}</div>
                         <div style="min-width: 0; flex: 1;">
                             <div style="font-weight: bold; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; color: var(--primary);">${escapeHtml(senderTitle)}</div>
-                            <div style="font-size: 11px; color: var(--text-muted);">New Message</div>
+                            <div style="font-size: 11px; color: var(--text-muted);">${escapeHtml(sourceLabel)}</div>
                         </div>
                     </div>
                     <span onclick="dismissNotification('${bannerId}')" style="cursor: pointer; font-size: 20px; color: var(--text-muted); font-weight: bold; line-height: 1; padding: 0 4px;">&times;</span>

@@ -4433,6 +4433,20 @@ def handle_message(data):
         "reactions": [],
         "created_at": now_ist().strftime("%Y-%m-%d %H:%M:%S")
     }
+    # Include group name so recipients viewing via their personal room can label the source
+    if room.startswith('group_'):
+        try:
+            gconn = get_db()
+            gcur = gconn.cursor(dictionary=True)
+            gid = int(room.split('_')[1])
+            gcur.execute("SELECT name FROM chat_groups WHERE id = %s", (gid,))
+            grow = gcur.fetchone()
+            if grow:
+                payload["group_name"] = grow["name"]
+            gcur.close()
+            gconn.close()
+        except Exception:
+            pass
     # Deliver to everyone currently viewing the conversation...
     emit('new_message', payload, room=room)
     # ...and to each recipient's personal room so chats they haven't opened still update live.
