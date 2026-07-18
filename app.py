@@ -3172,7 +3172,7 @@ def upload_file():
     conversation_id = request.form.get('conversation_id', 'unknown_chat')
     username = secure_filename(session.get('full_name', 'User'))
     
-    save_dir = os.path.join(UPLOAD_FOLDER, username, conversation_id)
+    save_dir = os.path.join(UPLOAD_FOLDER, str(session['user_id']), conversation_id)
     try:
         os.makedirs(save_dir, exist_ok=True)
     except Exception as e:
@@ -3191,7 +3191,7 @@ def upload_file():
     
     file.save(save_path)
     
-    relative_url = f"{username}/{conversation_id}/{filename}"
+    relative_url = f"{session['user_id']}/{conversation_id}/{filename}"
     
     return jsonify({
         "success": True, 
@@ -3216,8 +3216,8 @@ def upload_file_chunk():
     if not filename or not upload_id or chunk_index is None or total_chunks is None:
         return jsonify({"success": False, "message": "Missing chunk metadata"}), 400
 
-    username = secure_filename(session.get('full_name', 'User'))
-
+    username = str(session.get('user_id', '0'))
+    
     # Temporary directory for this specific upload session's chunks
     temp_chunk_dir = os.path.join(UPLOAD_FOLDER, username, conversation_id, f"tmp_{upload_id}")
     try:
@@ -3241,7 +3241,7 @@ def upload_file_chunk():
         
         if all_chunks_received:
             # Final destination details
-            save_dir = os.path.join(UPLOAD_FOLDER, username, conversation_id)
+            save_dir = os.path.join(UPLOAD_FOLDER, str(session['user_id']), conversation_id)
             os.makedirs(save_dir, exist_ok=True)
             
             final_filename = secure_filename(filename)
@@ -3275,7 +3275,7 @@ def upload_file_chunk():
                 except Exception:
                     pass
                 
-                relative_url = f"{username}/{conversation_id}/{final_filename}"
+                relative_url = f"{session['user_id']}/{conversation_id}/{final_filename}"
                 return jsonify({
                     "success": True,
                     "file_name": final_filename,
@@ -3290,25 +3290,25 @@ def upload_file_chunk():
     return jsonify({"success": True, "chunk_received": chunk_index})
 
 def find_file_fallback(base_path, filename):
-    # Try direct path first
+    # Try direct path first (exact stored relative path)
     direct_path = os.path.abspath(os.path.join(base_path, filename))
     if os.path.exists(direct_path):
         return direct_path
-        
-    # Search recursively for basename in UPLOAD_FOLDER
+
+    # Search recursively for basename in UPLOAD_FOLDER (handles legacy name-based folders)
     base_name = os.path.basename(filename)
     if os.path.exists(UPLOAD_FOLDER):
         for root, dirs, files in os.walk(UPLOAD_FOLDER):
             if base_name in files:
                 return os.path.abspath(os.path.join(root, base_name))
-                
+
     # Fallback to historical uploads folder if present
     uploads_dir = os.path.abspath("uploads")
     if os.path.exists(uploads_dir):
         for root, dirs, files in os.walk(uploads_dir):
             if base_name in files:
                 return os.path.abspath(os.path.join(root, base_name))
-                
+
     return None
 
 @app.route("/Images/<path:filename>")
@@ -3327,12 +3327,12 @@ def download_file(filename):
     if resolved_path and os.path.exists(resolved_path):
         base = os.path.basename(resolved_path)
         return send_file(resolved_path, as_attachment=as_attachment, download_name=base)
-        
+
     fallback_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
     if os.path.exists(fallback_path):
         base = os.path.basename(filename)
         return send_file(fallback_path, as_attachment=as_attachment, download_name=base)
-    return "File Not Found", 404
+    return jsonify({"success": False, "message": "File not found"}), 404
 
 @app.route("/api/chat/open/<path:filename>")
 @login_required
