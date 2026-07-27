@@ -1286,6 +1286,15 @@
         background: rgba(255, 255, 255, 0.08);
     }
     
+    /* Storage Mode Selector */
+    .storage-mode-option.selected {
+        border-color: var(--primary) !important;
+        background: rgba(0, 173, 181, 0.1) !important;
+    }
+    .storage-mode-option:hover {
+        background: rgba(255,255,255,0.08) !important;
+    }
+    
     /* Active touch feedback for user items (Scale & Glow) */
     .user-item {
         transition: background 0.15s ease, transform 0.1s ease !important;
@@ -1958,6 +1967,44 @@
                 <i class="fa-solid fa-trash-can"></i> Clear Rey Chat Storage
             </button>
             <div style="font-size: 11px; color: var(--text-muted); text-align: center;">Wipes downloaded files and temporary media stored in the rey_chat folder.</div>
+        </div>
+
+        <!-- Storage Mode Selector -->
+        <div style="display: flex; flex-direction: column; gap: 10px; border-top: 1px solid var(--glass-border); padding-top: 15px; margin-top: 5px;">
+            <span class="settings-field-label" style="margin: 0;">Storage Mode</span>
+            <div style="font-size: 12px; color: var(--text-muted); margin-bottom: 5px;">Choose how files are stored and shared across devices.</div>
+            <div style="display: flex; flex-direction: column; gap: 8px;" id="storageModeOptions">
+                <label class="storage-mode-option" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; border: 2px solid transparent;" onclick="setStorageMode('local')">
+                    <input type="radio" name="storageMode" value="local" style="accent-color: var(--primary);">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-weight: 600; font-size: 13px; color: white;">💻 Local Storage</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">Store files on this PC (default). Files won't be available from other devices.</span>
+                    </div>
+                </label>
+                <label class="storage-mode-option" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; border: 2px solid transparent;" onclick="setStorageMode('onedrive')">
+                    <input type="radio" name="storageMode" value="onedrive" style="accent-color: var(--primary);">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-weight: 600; font-size: 13px; color: white;">☁️ OneDrive Cloud</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">Store files in Microsoft OneDrive. Accessible from any device with OneDrive setup.</span>
+                    </div>
+                </label>
+                <label class="storage-mode-option" style="display: flex; align-items: center; gap: 12px; padding: 10px 12px; background: rgba(255,255,255,0.05); border-radius: 8px; cursor: pointer; border: 2px solid transparent;" onclick="setStorageMode('php')">
+                    <input type="radio" name="storageMode" value="php" style="accent-color: var(--primary);">
+                    <div style="display: flex; flex-direction: column; gap: 2px;">
+                        <span style="font-weight: 600; font-size: 13px; color: white;">🌐 PHP Extra Server</span>
+                        <span style="font-size: 11px; color: var(--text-muted);">Store files on a PHP server endpoint. Requires a running PHP server.</span>
+                    </div>
+                </label>
+            </div>
+            <div id="phpServerConfig" style="display: none; flex-direction: column; gap: 8px; margin-top: 5px;">
+                <span style="font-size: 12px; color: var(--text-muted);">PHP Server URL:</span>
+                <input type="text" id="phpServerUrl" value="http://localhost:8089" placeholder="http://localhost:8089" style="background: rgba(255,255,255,0.05); border: 1px solid var(--glass-border); border-radius: 6px; color: white; padding: 8px 12px; outline: none; font-size: 13px;">
+                <button onclick="testPhpServer()" class="teams-btn" style="background: var(--accent); color: white; border: none; padding: 8px; border-radius: 6px; font-weight: 600; cursor: pointer; font-size: 12px; display: flex; align-items: center; justify-content: center; gap: 6px;">
+                    <i class="fa-solid fa-plug"></i> Test Connection
+                </button>
+                <div id="phpServerStatus" style="font-size: 11px; color: var(--text-muted);"></div>
+            </div>
+            <div id="storageModeStatus" style="font-size: 12px; color: var(--accent); text-align: center; padding: 4px;"></div>
         </div>
     </div>
 </div>
@@ -4741,6 +4788,111 @@ async function clearStorage() {
     }
 }
 
+    /* ─── Storage Mode Management ─────────────────── */
+    let currentStorageMode = localStorage.getItem('reyStorageMode') || 'local';
+    let phpServerUrl = localStorage.getItem('reyPhpServerUrl') || 'http://localhost:8089';
+
+    function initStorageMode() {
+        const mode = localStorage.getItem('reyStorageMode') || 'local';
+        phpServerUrl = localStorage.getItem('reyPhpServerUrl') || 'http://localhost:8089';
+        setStorageMode(mode, true);
+    }
+
+    function getStorageMode() {
+        return currentStorageMode;
+    }
+
+    function getPhpServerUrl() {
+        return phpServerUrl;
+    }
+
+    function setStorageMode(mode, silent = false) {
+        currentStorageMode = mode;
+        localStorage.setItem('reyStorageMode', mode);
+
+        // Update radio buttons
+        document.querySelectorAll('input[name="storageMode"]').forEach(rb => {
+            rb.checked = rb.value === mode;
+        });
+
+        // Update visual selection
+        document.querySelectorAll('.storage-mode-option').forEach(el => {
+            const rb = el.querySelector('input[name="storageMode"]');
+            el.classList.toggle('selected', rb && rb.checked);
+        });
+
+        // Show/hide PHP server config
+        const phpConfig = document.getElementById('phpServerConfig');
+        if (phpConfig) {
+            phpConfig.style.display = mode === 'php' ? 'flex' : 'none';
+        }
+
+        const statusEl = document.getElementById('storageModeStatus');
+        if (statusEl && !silent) {
+            const labels = { local: '💻 Local Storage', onedrive: '☁️ OneDrive Cloud', php: '🌐 PHP Extra Server' };
+            statusEl.textContent = '✓ Storage mode set to: ' + (labels[mode] || mode);
+            setTimeout(() => { statusEl.textContent = ''; }, 3000);
+        }
+    }
+
+    function testPhpServer() {
+        const url = document.getElementById('phpServerUrl');
+        const statusEl = document.getElementById('phpServerStatus');
+        if (!url || !statusEl) return;
+
+        const serverUrl = url.value.trim();
+        if (!serverUrl) {
+            statusEl.textContent = '⚠️ Please enter a server URL';
+            statusEl.style.color = 'var(--text-muted)';
+            return;
+        }
+
+        phpServerUrl = serverUrl;
+        localStorage.setItem('reyPhpServerUrl', serverUrl);
+        statusEl.textContent = '⏳ Testing connection...';
+        statusEl.style.color = 'var(--text-muted)';
+
+        fetch(serverUrl + '/health')
+            .then(r => r.json())
+            .then(data => {
+                if (data.success) {
+                    statusEl.textContent = '✅ Connected! PHP Storage Server is running.';
+                    statusEl.style.color = '#25d366';
+                } else {
+                    statusEl.textContent = '❌ Server responded but returned an error.';
+                    statusEl.style.color = '#ef4444';
+                }
+            })
+            .catch(err => {
+                statusEl.textContent = '❌ Connection failed. Make sure the PHP server is running (php -S 0.0.0.0:8089 storage_server.php)';
+                statusEl.style.color = '#ef4444';
+                console.error('PHP Server test failed:', err);
+            });
+    }
+
+    async function uploadToPhpServer(file, conversationId, userId) {
+        const serverUrl = getPhpServerUrl();
+        if (!serverUrl) {
+            throw new Error('PHP Server URL not configured');
+        }
+
+        const fd = new FormData();
+        fd.append('file', file);
+        fd.append('conversation_id', conversationId);
+        fd.append('user_id', userId || '0');
+
+        const res = await fetch(serverUrl + '/upload', {
+            method: 'POST',
+            body: fd
+        });
+
+        if (!res.ok) {
+            throw new Error('PHP Server upload failed: ' + res.statusText);
+        }
+
+        return await res.json();
+    }
+
     function toggleStatusDropdown(event) {
         if (event) {
             event.stopPropagation();
@@ -5745,13 +5897,22 @@ function updateSendBtnState() {
         if (!fileObj || !fileObj.file || !currentRoom) return;
 
         const file = fileObj.file;
-        const CHUNKED_THRESHOLD = 10 * 1024 * 1024;
-        const CHUNK_SIZE = 5 * 1024 * 1024; // 5MB chunks
+        const storageMode = getStorageMode();
+        const isPhpMode = storageMode === 'php' && getPhpServerUrl();
 
         try {
             let data = null;
-            if (file.size > CHUNKED_THRESHOLD) {
-                const totalChunks = Math.ceil(file.size / CHUNK_SIZE);
+
+            // PHP Server mode: upload directly to PHP storage server
+            if (isPhpMode) {
+                data = await uploadToPhpServer(file, currentRoom, UID);
+                if (!data.success) {
+                    throw new Error(data.message || "PHP upload failed");
+                }
+            }
+            // Local/OneDrive mode: use Flask chunked upload for large files
+            else if (file.size > 10 * 1024 * 1024) {
+                const totalChunks = Math.ceil(file.size / (5 * 1024 * 1024));
                 const uploadId = Date.now() + "_" + Math.random().toString(36).slice(2, 9);
                 
                 for (let chunkIndex = 0; chunkIndex < totalChunks; chunkIndex++) {
@@ -5759,8 +5920,8 @@ function updateSendBtnState() {
                         throw new DOMException("Upload aborted by user.", "AbortError");
                     }
                     
-                    const start = chunkIndex * CHUNK_SIZE;
-                    const end = Math.min(start + CHUNK_SIZE, file.size);
+                    const start = chunkIndex * (5 * 1024 * 1024);
+                    const end = Math.min(start + (5 * 1024 * 1024), file.size);
                     const chunk = file.slice(start, end);
                     
                     fileObj.progress = Math.round((chunkIndex / totalChunks) * 100);
@@ -7041,6 +7202,7 @@ function updateSendBtnState() {
     loadUsers().then(() => {
     loadMyProfile();
     loadConversations();
+    initStorageMode();
 });
 
 

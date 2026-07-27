@@ -57,15 +57,92 @@ app.secret_key = os.environ.get("SECRET_KEY", "change-this-to-a-random-secret-ke
 app.permanent_session_lifetime = timedelta(days=365)
 app.config['MAX_CONTENT_LENGTH'] = 50 * 1024 * 1024  # 50MB max upload
 
-# Storage directory for local uploads (C:\rey_chat or local workspace fallback)
-UPLOAD_FOLDER = r"C:\rey_chat"
+# Storage directory for local uploads.
+# Prefer a Microsoft OneDrive-synced folder so files are available to every
+# client/PC that connects to this (single, central) server, and mirrored to
+# the cloud. Falls back to C:\rey_chat, then the local workspace.
+def _resolve_upload_folder():
+    candidates = []
+    # Common OneDrive local roots on Windows
+    user_home = os.path.expanduser("~")
+    onedrive_env = os.environ.get("OneDrive")
+    if onedrive_env:
+        candidates.append(onedrive_env)
+    candidates += [
+        os.path.join(user_home, "OneDrive"),
+        os.path.join(user_home, "OneDrive - Personal"),
+        os.path.join(user_home, "OneDrive - Microsoft"),
+        os.path.join(user_home, "OneDrive - Work"),
+        os.path.join(user_home, "OneDrive - Company"),
+        r"C:\rey_chat",
+        os.path.join(os.getcwd(), "rey_chat"),
+    ]
+    # Allow override via environment variable
+    env_override = os.environ.get("REY_UPLOAD_FOLDER")
+    if env_override:
+        candidates.insert(0, env_override)
+
+    for base in candidates:
+        if not base:
+            continue
+        try:
+            target = os.path.join(base, "rey_chat")
+            os.makedirs(target, exist_ok=True)
+            # Quick writability test
+            test_file = os.path.join(target, ".write_test")
+            with open(test_file, "w") as tf:
+                tf.write("ok")
+            os.remove(test_file)
+            return target
+        except Exception:
+            continue
+    # Absolute last resort
+    fallback = os.path.join(os.getcwd(), "rey_chat")
+    os.makedirs(fallback, exist_ok=True)
+    return fallback
+
+UPLOAD_FOLDER = _resolve_upload_folder()
+
+# PHP Extra Storage Server URL (optional)
+# Run: php -S 0.0.0.0:8089 storage_server.php
+# When this is set and storage mode is 'php', files are proxied through it.
+PHP_STORAGE_URL = os.environ.get("PHP_STORAGE_URL", "").rstrip("/")
+
+# OneDrive (Microsoft Graph) cloud storage. Used when no central server
+# exists: files live in a shared OneDrive account so every app instance
+# (sharing only the DB) can read/write them. Falls back to local disk
+# when credentials are not configured (see onedrive_storage.py).
 try:
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    import onedrive_storage as cloud
 except Exception:
-    UPLOAD_FOLDER = os.path.join(os.getcwd(), "rey_chat")
-    if not os.path.exists(UPLOAD_FOLDER):
-        os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    cloud = None
+
+
+def store_upload(filename, data, subfolder=""):
+    """Persist uploaded file bytes. Returns (storage_ref, stored_name).
+
+    Uses OneDrive when configured, otherwise local disk under UPLOAD_FOLDER.
+    `storage_ref` is what gets saved as message file_url.
+    """
+    if cloud is not None and cloud.is_available():
+        ref = cloud.upload_file(filename, data, subfolder=subfolder)
+        return ref, filename
+    # Local disk fallback
+    folder = os.path.join(UPLOAD_FOLDER, subfolder) if subfolder else UPLOAD_FOLDER
+    os.makedirs(folder, exist_ok=True)
+    safe = secure_filename(filename)
+    save_path = os.path.join(folder, safe)
+    base, ext = os.path.splitext(safe)
+    counter = 1
+    while os.path.exists(save_path):
+        safe = f"{base}_{counter}{ext}"
+        save_path = os.path.join(folder, safe)
+        counter += 1
+    with open(save_path, "wb") as f:
+        f.write(data)
+    ref = f"{subfolder}/{safe}" if subfolder else safe
+    return ref, safe
+
 
 # Force PyInstaller to bundle Flask-SocketIO's dynamic/hidden imports
 import engineio.async_drivers.threading
@@ -1023,7 +1100,8 @@ def inject_tools():
 def index():
     if "user_id" in session:
         return redirect(url_for("chat"))
-    return redirect(url_for("login"))
+    from flask import send_from_directory
+    return send_from_directory(app.root_path, "index.html")
 
 
 @app.route("/login", methods=["GET", "POST"])
@@ -3170,33 +3248,18 @@ def upload_file():
     
     file = request.files['file']
     conversation_id = request.form.get('conversation_id', 'unknown_chat')
-    username = secure_filename(session.get('full_name', 'User'))
+    subfolder = f"{session['user_id']}/{conversation_id}"
     
-    save_dir = os.path.join(UPLOAD_FOLDER, str(session['user_id']), conversation_id)
     try:
-        os.makedirs(save_dir, exist_ok=True)
+        data = file.read()
+        ref, stored_name = store_upload(file.filename, data, subfolder=subfolder)
     except Exception as e:
-        return jsonify({"success": False, "message": f"Failed to create storage directory: {str(e)}"}), 500
-        
-    filename = secure_filename(file.filename)
-    save_path = os.path.join(save_dir, filename)
-    
-    # Handle name collisions by appending a number
-    base, ext = os.path.splitext(filename)
-    counter = 1
-    while os.path.exists(save_path):
-        filename = f"{base}_{counter}{ext}"
-        save_path = os.path.join(save_dir, filename)
-        counter += 1
-    
-    file.save(save_path)
-    
-    relative_url = f"{session['user_id']}/{conversation_id}/{filename}"
+        return jsonify({"success": False, "message": f"Upload failed: {str(e)}"}), 500
     
     return jsonify({
         "success": True, 
-        "file_name": filename,
-        "local_url": relative_url
+        "file_name": stored_name,
+        "local_url": ref
     })
 
 
@@ -3240,29 +3303,14 @@ def upload_file_chunk():
                 break
         
         if all_chunks_received:
-            # Final destination details
-            save_dir = os.path.join(UPLOAD_FOLDER, str(session['user_id']), conversation_id)
-            os.makedirs(save_dir, exist_ok=True)
-            
-            final_filename = secure_filename(filename)
-            save_path = os.path.join(save_dir, final_filename)
-            
-            # Handle name collisions by appending a number
-            base, ext = os.path.splitext(final_filename)
-            counter = 1
-            while os.path.exists(save_path):
-                final_filename = f"{base}_{counter}{ext}"
-                save_path = os.path.join(save_dir, final_filename)
-                counter += 1
-
-            # Merge all chunks into the final destination
+            # Merge all chunks into memory, then persist via store_upload
             try:
-                with open(save_path, 'wb') as merged_file:
-                    for i in range(total_chunks):
-                        p = os.path.join(temp_chunk_dir, f"chunk_{i}")
-                        with open(p, 'rb') as f:
-                            merged_file.write(f.read())
-                
+                merged = b""
+                for i in range(total_chunks):
+                    p = os.path.join(temp_chunk_dir, f"chunk_{i}")
+                    with open(p, 'rb') as f:
+                        merged += f.read()
+
                 # Cleanup temp chunk files and directory
                 for i in range(total_chunks):
                     p = os.path.join(temp_chunk_dir, f"chunk_{i}")
@@ -3274,12 +3322,13 @@ def upload_file_chunk():
                     os.rmdir(temp_chunk_dir)
                 except Exception:
                     pass
-                
-                relative_url = f"{session['user_id']}/{conversation_id}/{final_filename}"
+
+                subfolder = f"{session['user_id']}/{conversation_id}"
+                ref, stored_name = store_upload(filename, merged, subfolder=subfolder)
                 return jsonify({
                     "success": True,
-                    "file_name": final_filename,
-                    "local_url": relative_url,
+                    "file_name": stored_name,
+                    "local_url": ref,
                     "merged": True
                 })
             except Exception as e:
@@ -3295,10 +3344,19 @@ def find_file_fallback(base_path, filename):
     if os.path.exists(direct_path):
         return direct_path
 
-    # Search recursively for basename in UPLOAD_FOLDER (handles legacy name-based folders)
     base_name = os.path.basename(filename)
+
+    # Search recursively for basename in the active UPLOAD_FOLDER
+    # (handles legacy name-based folders alongside the new user_id-based layout)
     if os.path.exists(UPLOAD_FOLDER):
         for root, dirs, files in os.walk(UPLOAD_FOLDER):
+            if base_name in files:
+                return os.path.abspath(os.path.join(root, base_name))
+
+    # Fallback: legacy C:\rey_chat location (files uploaded before OneDrive move)
+    legacy_dir = r"C:\rey_chat"
+    if legacy_dir != os.path.abspath(base_path) and os.path.exists(legacy_dir):
+        for root, dirs, files in os.walk(legacy_dir):
             if base_name in files:
                 return os.path.abspath(os.path.join(root, base_name))
 
@@ -3322,6 +3380,34 @@ def serve_images(filename):
 @app.route("/api/chat/download/<path:filename>")
 @login_required
 def download_file(filename):
+    # PHP Extra Server stored file
+    if filename.startswith("php:") and PHP_STORAGE_URL:
+        try:
+            phpUrl = f"{PHP_STORAGE_URL}/download/{filename}"
+            resp = requests.get(phpUrl, stream=True, timeout=120)
+            if resp.status_code == 200:
+                from io import BytesIO
+                ct = resp.headers.get("Content-Type", "application/octet-stream")
+                disp = resp.headers.get("Content-Disposition", "")
+                name = filename.split("/")[-1] if "/" in filename else "file"
+                if "filename=" in disp:
+                    name = disp.split("filename=")[-1].strip('"\'')
+                return send_file(BytesIO(resp.content), mimetype=ct,
+                                as_attachment=True, download_name=name)
+            return jsonify({"success": False, "message": "File not found on PHP server"}), 404
+        except Exception as e:
+            return jsonify({"success": False, "message": f"PHP server proxy failed: {str(e)}"}), 502
+
+    # Cloud (OneDrive) stored file
+    if cloud is not None and cloud.is_available() and filename.startswith("od:"):
+        try:
+            data, ct, name = cloud.download_file(filename)
+            from io import BytesIO
+            return send_file(BytesIO(data), mimetype=ct,
+                            as_attachment=True, download_name=name)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"Cloud download failed: {str(e)}"}), 404
+
     resolved_path = find_file_fallback(UPLOAD_FOLDER, filename)
     as_attachment = request.args.get('download', '0') == '1'
     if resolved_path and os.path.exists(resolved_path):
@@ -3337,6 +3423,24 @@ def download_file(filename):
 @app.route("/api/chat/open/<path:filename>")
 @login_required
 def open_file(filename):
+    # PHP Extra Server stored file
+    if filename.startswith("php:") and PHP_STORAGE_URL:
+        try:
+            phpUrl = f"{PHP_STORAGE_URL}/open/{filename}"
+            return redirect(phpUrl)
+        except Exception as e:
+            return jsonify({"success": False, "message": f"PHP server redirect failed: {str(e)}"}), 502
+
+    # Cloud (OneDrive): open via a temporary view link
+    if cloud is not None and cloud.is_available() and filename.startswith("od:"):
+        try:
+            url = cloud.open_url(filename)
+            if url:
+                return redirect(url)
+        except Exception:
+            pass
+        return jsonify({"success": False, "message": "Failed to open cloud file"}), 404
+
     file_path = find_file_fallback(UPLOAD_FOLDER, filename)
     if not file_path or not os.path.exists(file_path):
         display_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))
@@ -3362,6 +3466,10 @@ def open_file(filename):
 @app.route("/api/chat/save/<path:filename>")
 @login_required
 def save_file_dir(filename):
+    # Cloud / PHP files have no local directory to open
+    if filename.startswith("od:") or filename.startswith("php:"):
+        return jsonify({"success": False, "message": "Cloud/PHP file has no local directory"}), 400
+
     file_path = find_file_fallback(UPLOAD_FOLDER, filename)
     if not file_path or not os.path.exists(file_path):
         display_path = os.path.abspath(os.path.join(UPLOAD_FOLDER, filename))

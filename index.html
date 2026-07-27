@@ -1,0 +1,249 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>REYDM Chat - Secure & Modern Messaging</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        :root {
+            --bg-color: #0f172a;
+            --panel-bg: rgba(30, 41, 59, 0.7);
+            --border-color: rgba(99, 102, 241, 0.15);
+            --text-main: #f3f4f6;
+            --text-muted: #9ca3af;
+            --primary: #6366f1;
+            --primary-hover: #818cf8;
+            --accent: #a855f7;
+            --success: #10b981;
+            --primary-gradient: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+        }
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+            font-family: 'Inter', sans-serif;
+        }
+        body {
+            background-color: #0f172a;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+            background-image: linear-gradient(135deg, rgba(0, 173, 181, 0.08) 0%, rgba(144, 55, 117, 0.06) 50%, rgba(63, 114, 175, 0.08) 100%),
+                              radial-gradient(circle at top right, rgba(0, 173, 181, 0.15), transparent 45%),
+                              radial-gradient(circle at bottom left, rgba(144, 55, 117, 0.1), transparent 45%);
+            background-size: 200% 200%;
+            animation: bgShift 20s ease infinite;
+        }
+        @keyframes bgShift {
+            0% { background-position: 0% 50%; }
+            50% { background-position: 100% 50%; }
+            100% { background-position: 0% 50%; }
+        }
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(30px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+        @keyframes float {
+            0%, 100% { transform: translateY(0); }
+            50% { transform: translateY(-12px); }
+        }
+        .landing-wrapper {
+            width: 100%;
+            max-width: 900px;
+            padding: 60px 40px;
+            animation: fadeIn 0.6s ease-out;
+            text-align: center;
+            background: rgba(30, 41, 59, 0.7);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(99, 102, 241, 0.15);
+            border-radius: 16px;
+            box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
+        }
+        .hero-logo {
+            width: 100px;
+            height: auto;
+            margin-bottom: 16px;
+            filter: drop-shadow(0 4px 20px rgba(99, 102, 241, 0.3));
+            animation: float 4s ease-in-out infinite;
+        }
+        .hero-title {
+            font-size: 42px;
+            font-weight: 700;
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 12px;
+            letter-spacing: -0.5px;
+        }
+        .hero-sub {
+            font-size: 18px;
+            color: #9ca3af;
+            margin-bottom: 40px;
+            max-width: 550px;
+            margin-left: auto;
+            margin-right: auto;
+            line-height: 1.6;
+        }
+        .cta-group {
+            display: flex;
+            gap: 16px;
+            justify-content: center;
+            margin-bottom: 50px;
+            flex-wrap: wrap;
+        }
+        .cta-group a {
+            text-decoration: none;
+        }
+        .btn-cta {
+            display: inline-flex;
+            align-items: center;
+            gap: 10px;
+            padding: 16px 40px;
+            border-radius: 12px;
+            font-weight: 600;
+            font-size: 16px;
+            cursor: pointer;
+            transition: all 0.25s;
+            border: none;
+            font-family: 'Inter', sans-serif;
+        }
+        .btn-cta.primary {
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+            color: white;
+            box-shadow: 0 8px 24px rgba(99, 102, 241, 0.35);
+        }
+        .btn-cta.primary:hover {
+            transform: translateY(-3px);
+            box-shadow: 0 12px 32px rgba(99, 102, 241, 0.5);
+        }
+        .btn-cta.secondary {
+            background: rgba(30, 41, 59, 0.7);
+            color: #f3f4f6;
+            border: 1px solid rgba(99, 102, 241, 0.15);
+        }
+        .btn-cta.secondary:hover {
+            border-color: #6366f1;
+            transform: translateY(-3px);
+            box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
+        }
+        .features {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+            gap: 20px;
+            margin-top: 10px;
+        }
+        .feature-card {
+            background: rgba(30, 41, 59, 0.5);
+            border: 1px solid rgba(99, 102, 241, 0.12);
+            border-radius: 14px;
+            padding: 28px 20px;
+            text-align: center;
+            transition: all 0.3s;
+        }
+        .feature-card:hover {
+            border-color: #6366f1;
+            transform: translateY(-4px);
+            box-shadow: 0 12px 32px rgba(0, 0, 0, 0.15);
+        }
+        .feature-card i {
+            font-size: 32px;
+            margin-bottom: 16px;
+            background: linear-gradient(135deg, #6366f1 0%, #a855f7 50%, #ec4899 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+        .feature-card h3 {
+            font-size: 16px;
+            font-weight: 600;
+            margin-bottom: 8px;
+            color: #f3f4f6;
+        }
+        .feature-card p {
+            font-size: 13px;
+            color: #9ca3af;
+            line-height: 1.5;
+        }
+        .footer-links {
+            margin-top: 40px;
+            display: flex;
+            gap: 20px;
+            justify-content: center;
+            flex-wrap: wrap;
+        }
+        .footer-links a {
+            color: #9ca3af;
+            text-decoration: none;
+            font-size: 13px;
+            transition: color 0.2s;
+        }
+        .footer-links a:hover {
+            color: #6366f1;
+        }
+        @media (max-width: 600px) {
+            .landing-wrapper { padding: 40px 20px; }
+            .hero-title { font-size: 30px; }
+            .hero-sub { font-size: 16px; }
+            .btn-cta { padding: 14px 28px; font-size: 14px; }
+        }
+    </style>
+</head>
+<body>
+    <div class="landing-wrapper">
+        <img src="/Images/REYDM_LOGO.png" alt="REYDM Logo" class="hero-logo">
+        <h1 class="hero-title">REYDM Chat</h1>
+        <p class="hero-sub">
+            Secure, real-time messaging with end-to-end encryption,<br>
+            customizable themes, and enterprise-grade reliability.
+        </p>
+
+        <div class="cta-group">
+            <a href="/login"><button class="btn-cta primary"><i class="fas fa-sign-in-alt"></i> Sign In</button></a>
+            <a href="/register"><button class="btn-cta secondary"><i class="fas fa-user-plus"></i> Create Account</button></a>
+        </div>
+
+        <div class="features">
+            <div class="feature-card">
+                <i class="fas fa-bolt"></i>
+                <h3>Real-Time Messaging</h3>
+                <p>Instant delivery powered by Socket.IO with read receipts and typing indicators.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-paint-roller"></i>
+                <h3>Custom Themes</h3>
+                <p>Full theme editor with gradients, custom colors, bubble styles, and light/dark modes.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-cloud-upload-alt"></i>
+                <h3>File Storage</h3>
+                <p>Upload files locally, to OneDrive, or your own PHP server. Choose your backend.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-lock"></i>
+                <h3>Privacy First</h3>
+                <p>Session-based auth, self-destructing messages, and full message history control.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-users"></i>
+                <h3>Group Chats</h3>
+                <p>Create groups with custom icons, descriptions, and member management tools.</p>
+            </div>
+            <div class="feature-card">
+                <i class="fas fa-code-branch"></i>
+                <h3>Rich Messages</h3>
+                <p>Send formatted code blocks with syntax highlighting, inline images, and file attachments.</p>
+            </div>
+        </div>
+
+        <div class="footer-links">
+            <a href="/login">Sign In</a>
+            <a href="/register">Register</a>
+            <a href="https://github.com/Hxtreme/Rey_chat" target="_blank"><i class="fab fa-github"></i> GitHub</a>
+        </div>
+    </div>
+</body>
+</html>
