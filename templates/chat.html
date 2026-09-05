@@ -89,6 +89,12 @@
         transform: translateX(4px);
         box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.2);
     }
+    .user-item.drag-hover-user {
+        background: rgba(0, 173, 181, 0.18) !important;
+        border: 2px dashed var(--primary) !important;
+        transform: scale(1.02);
+        box-shadow: 0 4px 15px rgba(0, 173, 181, 0.3) !important;
+    }
 
     /* Main Chat Area */
     .chat-area {
@@ -453,15 +459,15 @@
         display: none;
         position: fixed;
         z-index: 10000;
-        background: var(--panel-bg);
+        background: var(--panel-bg, #202c33);
         border: 1px solid var(--border-color);
         border-radius: 12px;
-        box-shadow: 0 4px 16px rgba(0, 0, 0, 0.4);
+        box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
         padding: 6px 0;
-        width: 200px;
+        width: 270px;
         backdrop-filter: var(--glass-blur);
         animation: scaleUp 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-        overflow: hidden;
+        overflow: visible;
     }
     @keyframes scaleUp {
         from { transform: scale(0.9) translateY(-5px); opacity: 0; }
@@ -469,19 +475,29 @@
     }
     .context-menu-reactions-row {
         display: flex;
-        justify-content: space-between;
+        justify-content: space-around;
         align-items: center;
-        padding: 8px 12px;
+        padding: 8px 8px;
         border-bottom: 1px solid var(--border-color);
-        background: rgba(255, 255, 255, 0.03);
+        background: rgba(255, 255, 255, 0.04);
+        border-top-left-radius: 11px;
+        border-top-right-radius: 11px;
+        gap: 2px;
     }
     .context-menu-reactions-row span {
-        font-size: 18px;
+        font-size: 20px;
+        line-height: 1;
         cursor: pointer;
-        transition: transform 0.12s cubic-bezier(0.2, 0.8, 0.2, 1);
+        padding: 4px 6px;
+        border-radius: 8px;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.15s ease;
     }
     .context-menu-reactions-row span:hover {
-        transform: scale(1.35);
+        transform: scale(1.3);
+        background: rgba(255, 255, 255, 0.12);
     }
     .context-menu-item {
         padding: 10px 16px;
@@ -713,28 +729,39 @@
 .msg-reactions .reaction-badge:hover { background:rgba(255,255,255,.15); }
 .msg-reactions .reaction-badge.mine { border-color:var(--primary); background:rgba(37,211,102,.15); }
 .reaction-picker {
-    display:none; position:absolute; bottom:100%; left:0;
-    background:var(--glass-bg); border:1px solid var(--glass-border);
-    border-radius:12px; padding:6px; gap:4px;
-    backdrop-filter:blur(20px); z-index:50;
-    flex-wrap:wrap; width:210px;
+    display: none; position: fixed;
+    background: var(--panel-bg, #202c33); border: 1px solid var(--border-color, rgba(255,255,255,0.15));
+    border-radius: 30px; padding: 6px 12px; gap: 6px;
+    backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+    z-index: 10001; box-shadow: 0 6px 25px rgba(0,0,0,0.45);
+    flex-direction: row; align-items: center; justify-content: center;
+    white-space: nowrap;
 }
-.reaction-picker.show { display:flex; }
+.reaction-picker.show { display: flex; }
 .reaction-picker button {
-    background:none; border:none; font-size:22px; cursor:pointer;
-    padding:4px 6px; border-radius:8px; transition:background .2s;
+    background: none; border: none; font-size: 22px; cursor: pointer;
+    padding: 4px 6px; border-radius: 50%; transition: transform 0.15s ease, background 0.15s ease;
+    line-height: 1; display: inline-flex; align-items: center; justify-content: center;
 }
-.reaction-picker button:hover { background:rgba(255,255,255,.12); }
+.reaction-picker button:hover {
+    transform: scale(1.3);
+    background: rgba(255,255,255,.12);
+}
 
 /* ─── Scroll-to-bottom button ──────────── */
 .scroll-bottom-btn {
-    position:absolute; bottom:80px; right:20px;
-    width:40px; height:40px; border-radius:50%;
-    background:var(--glass-bg); border:1px solid var(--glass-border);
-    color:var(--text-primary); cursor:pointer; z-index:20;
-    display:none; align-items:center; justify-content:center;
-    font-size:18px; box-shadow:0 2px 10px rgba(0,0,0,.3);
-    transition:all .2s;
+    position: absolute; bottom: 80px; right: 25px;
+    width: 42px; height: 42px; border-radius: 50%;
+    background: var(--bg-card, #202c33); border: 1px solid var(--glass-border);
+    color: var(--accent, #00adb5); cursor: pointer; z-index: 50;
+    display: none; align-items: center; justify-content: center;
+    font-size: 18px; box-shadow: 0 4px 15px rgba(0,0,0,.4);
+    transition: all .2s ease;
+}
+.scroll-bottom-btn:hover {
+    transform: scale(1.08);
+    background: var(--primary, #00adb5);
+    color: #fff;
 }
 /* --- Mention Highlight Bubble Styling --- */
 .msg-wrapper.mention-me-highlight {
@@ -1542,9 +1569,9 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     border-radius: 24px;
-    padding: 5px 12px;
+    padding: 6px 14px;
     display: flex;
-    align-items: center;
+    align-items: flex-end;
     gap: 8px;
     min-height: 48px;
     box-sizing: border-box;
@@ -1565,6 +1592,7 @@
     transition: color 0.15s, transform 0.1s;
     outline: none;
     flex-shrink: 0;
+    margin-bottom: 2px;
 }
 .whatsapp-pill-btn:hover {
     color: #aebac1;
@@ -1581,12 +1609,13 @@
     font-family: inherit;
     font-size: 15px !important;
     resize: none !important;
-    height: 24px !important; /* Start height */
-    min-height: 24px !important;
-    max-height: 120px !important; /* Allow growing */
+    min-height: 24px;
+    max-height: 140px;
     box-sizing: border-box;
     caret-color: #00adb5 !important; /* Vibrant caret color matching our theme */
     line-height: 20px;
+    overflow-y: hidden;
+    word-break: break-word;
 }
 #msgIn::placeholder {
     color: #8696a0;
@@ -3062,6 +3091,14 @@ socket.on('user_status_changed', function(data) {
         }
     }
 
+    function autoResizeInput(el) {
+        if (!el) return;
+        el.style.height = 'auto';
+        const newHeight = Math.min(Math.max(el.scrollHeight, 24), 140);
+        el.style.height = newHeight + 'px';
+        el.style.overflowY = el.scrollHeight > 140 ? 'auto' : 'hidden';
+    }
+
     let editMsgId = null;
     function initEdit(msgId) {
         const msg = window.chatMessages && window.chatMessages[msgId];
@@ -3077,17 +3114,14 @@ socket.on('user_status_changed', function(data) {
         const msgIn = document.getElementById('msgIn');
         msgIn.value = msg.message_text;
         msgIn.focus();
-        
-        msgIn.style.height = '24px';
-        if (msgIn.scrollHeight > 24) {
-            msgIn.style.height = Math.min(msgIn.scrollHeight, 120) + 'px';
-        }
+        autoResizeInput(msgIn);
     }
     function cancelEdit() {
         editMsgId = null;
         document.getElementById('editBanner').style.display = 'none';
-        document.getElementById('msgIn').value = '';
-        document.getElementById('msgIn').style.height = '24px';
+        const msgIn = document.getElementById('msgIn');
+        msgIn.value = '';
+        autoResizeInput(msgIn);
         updateSendBtnState();
     }
 
@@ -3102,14 +3136,16 @@ socket.on('user_status_changed', function(data) {
         
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
-        const menuWidth = 200;
-        const menuHeight = 240;
+        const menuWidth = 270;
+        const menuHeight = 340;
         
         let left = x;
         let top = y;
         
-        if (x + menuWidth > screenWidth) left = screenWidth - menuWidth - 10;
-        if (y + menuHeight > screenHeight) top = screenHeight - menuHeight - 10;
+        if (x + menuWidth > screenWidth - 15) left = screenWidth - menuWidth - 15;
+        if (y + menuHeight > screenHeight - 15) top = screenHeight - menuHeight - 15;
+        if (left < 10) left = 10;
+        if (top < 10) top = 10;
         
         menu.style.left = `${left}px`;
         menu.style.top = `${top}px`;
@@ -5397,6 +5433,8 @@ async function clearStorage() {
     document.querySelector('emoji-picker').addEventListener('emoji-click', event => {
         msgIn.value += event.detail.unicode;
         emojiPicker.style.display = 'none';
+        autoResizeInput(msgIn);
+        updateSendBtnState();
         msgIn.focus();
     });
     
@@ -5705,11 +5743,8 @@ function updateSendBtnState() {
 }
 
     msgIn.addEventListener('input', function() {
-        // Auto-resize
-        this.style.height = '24px';
-        if (this.scrollHeight > 24) {
-            this.style.height = Math.min(this.scrollHeight, 120) + 'px';
-        }
+        // Auto-resize textarea
+        autoResizeInput(this);
         updateSendBtnState();
         
         if(currentRoom) socket.emit('typing', { conversation_id: currentRoom });
@@ -5741,6 +5776,7 @@ function updateSendBtnState() {
         mentionMatches = [];
         activeMentionIndex = -1;
         mentionDropdown.style.display = 'none';
+        autoResizeInput(msgIn);
         updateSendBtnState();
         msgIn.focus();
     }
@@ -5834,7 +5870,7 @@ function updateSendBtnState() {
             });
             cancelEdit();
             inp.value = '';
-            inp.style.height = '24px';
+            autoResizeInput(inp);
             updateSendBtnState();
             return;
         }
@@ -5857,7 +5893,7 @@ function updateSendBtnState() {
             });
             
             inp.value = '';
-            inp.style.height = '24px';
+            autoResizeInput(inp);
             updateSendBtnState();
             cancelReply();
             cancelStagedFiles();
@@ -5880,7 +5916,7 @@ function updateSendBtnState() {
             scrollToBottom();
             
             inp.value = '';
-            inp.style.height = '24px';
+            autoResizeInput(inp);
             updateSendBtnState();
             cancelReply();
             
@@ -6030,6 +6066,10 @@ function updateSendBtnState() {
         updateSendBtnState();
     }
 
+    // Prevent browser from opening raw dropped files outside drop targets
+    window.addEventListener('dragover', (e) => e.preventDefault(), false);
+    window.addEventListener('drop', (e) => e.preventDefault(), false);
+
     // Drag and Drop Events
     const dropZone = document.getElementById('dropZone');
     
@@ -6052,12 +6092,15 @@ function updateSendBtnState() {
 
     dropZone.addEventListener('drop', (e) => {
         dropZone.classList.remove('dragover');
-        if (!currentRoom) return;
-        
         const files = e.dataTransfer.files;
-        if (files.length > 0) {
-            handleFileUpload(files);
+        if (!files || files.length === 0) return;
+        
+        if (!currentRoom) {
+            showToast("Please drag & drop onto a user profile in the sidebar or select a conversation first.", "info");
+            return;
         }
+        
+        handleFileUpload(files);
     });
 
     async function loadUsers() {
@@ -6153,6 +6196,40 @@ function updateSendBtnState() {
                         openConv(c.partner_id, c.partner_name);
                     }
                 };
+
+                // Drag & Drop directly onto this profile/contact in the sidebar
+                div.addEventListener('dragenter', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    div.classList.add('drag-hover-user');
+                });
+                div.addEventListener('dragover', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    div.classList.add('drag-hover-user');
+                });
+                div.addEventListener('dragleave', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    if (!div.contains(e.relatedTarget)) {
+                        div.classList.remove('drag-hover-user');
+                    }
+                });
+                div.addEventListener('drop', (e) => {
+                    e.preventDefault();
+                    e.stopPropagation();
+                    div.classList.remove('drag-hover-user');
+                    const dropped = e.dataTransfer.files;
+                    if (dropped && dropped.length > 0) {
+                        if (c.type === 'group') {
+                            openConv(c.conversation_id, c.partner_name);
+                        } else {
+                            openConv(c.partner_id, c.partner_name);
+                        }
+                        handleFileUpload(dropped);
+                    }
+                });
+
                 // Right-click context menu for sidebar
                 div.addEventListener('contextmenu', (e) => {
                     e.preventDefault();
@@ -6272,6 +6349,30 @@ function updateSendBtnState() {
                 closeNewChatModal();
                 openConv(u.id, u.full_name);
             };
+
+            div.addEventListener('dragenter', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                div.classList.add('drag-hover-user');
+            });
+            div.addEventListener('dragover', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                div.classList.add('drag-hover-user');
+            });
+            div.addEventListener('dragleave', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                if (!div.contains(e.relatedTarget)) div.classList.remove('drag-hover-user');
+            });
+            div.addEventListener('drop', (e) => {
+                e.preventDefault(); e.stopPropagation();
+                div.classList.remove('drag-hover-user');
+                const dropped = e.dataTransfer.files;
+                if (dropped && dropped.length > 0) {
+                    closeNewChatModal();
+                    openConv(u.id, u.full_name);
+                    handleFileUpload(dropped);
+                }
+            });
+
             list.appendChild(div);
         });
     }
@@ -6732,19 +6833,36 @@ function updateSendBtnState() {
 
     /* ─── Message Reactions ─────────────────── */
     function showReactionPicker(event, msgId, x = null, y = null) {
-        event.stopPropagation();
+        if (event) event.stopPropagation();
         reactionTargetMsgId = msgId;
         const picker = document.getElementById('reactionPicker');
+        if (!picker) return;
         picker.style.display = 'flex';
         
+        const pickerWidth = 320;
+        const screenWidth = window.innerWidth;
+        const screenHeight = window.innerHeight;
+        
+        let topPos, leftPos;
         if (x !== null && y !== null) {
-            picker.style.top = (y - 45) + 'px';
-            picker.style.left = (x - 100) + 'px';
-        } else {
+            topPos = y - 55;
+            leftPos = x - (pickerWidth / 2);
+        } else if (event && event.target) {
             const rect = event.target.getBoundingClientRect();
-            picker.style.top = (window.scrollY + rect.top - 45) + 'px';
-            picker.style.left = (window.scrollX + rect.left - 100) + 'px';
+            topPos = rect.top - 50;
+            leftPos = rect.left - (pickerWidth / 2) + 20;
+        } else {
+            topPos = screenHeight / 2 - 25;
+            leftPos = screenWidth / 2 - (pickerWidth / 2);
         }
+        
+        if (leftPos + pickerWidth > screenWidth - 15) leftPos = screenWidth - pickerWidth - 15;
+        if (leftPos < 15) leftPos = 15;
+        if (topPos < 15) topPos = 65;
+        if (topPos + 50 > screenHeight) topPos = screenHeight - 65;
+        
+        picker.style.top = topPos + 'px';
+        picker.style.left = leftPos + 'px';
     }
     
     function sendReaction(emoji) {
@@ -7064,17 +7182,30 @@ function updateSendBtnState() {
         const area = document.getElementById('msgArea');
         if (!area) return;
         
-        const isNearBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 250;
-        if (force || isNearBottom) {
-            area.scrollTop = area.scrollHeight;
-            document.getElementById('scrollBottomBtn').style.display = 'none';
+        const btn = document.getElementById('scrollBottomBtn');
+        const cnt = document.getElementById('newMsgCount');
+
+        if (force) {
+            area.scrollTo({ top: area.scrollHeight, behavior: 'smooth' });
+            if (btn) btn.style.display = 'none';
             newMsgWhileScrolled = 0;
-            document.getElementById('newMsgCount').style.display = 'none';
+            if (cnt) cnt.style.display = 'none';
+            return;
+        }
+
+        const isNearBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 150;
+        if (isNearBottom) {
+            area.scrollTop = area.scrollHeight;
+            if (btn) btn.style.display = 'none';
+            newMsgWhileScrolled = 0;
+            if (cnt) cnt.style.display = 'none';
         } else {
-            document.getElementById('scrollBottomBtn').style.display = 'flex';
+            if (btn) btn.style.display = 'flex';
             newMsgWhileScrolled++;
-            document.getElementById('newMsgCount').textContent = newMsgWhileScrolled;
-            document.getElementById('newMsgCount').style.display = 'flex';
+            if (cnt) {
+                cnt.textContent = newMsgWhileScrolled;
+                cnt.style.display = 'flex';
+            }
         }
     }
 
@@ -7138,16 +7269,25 @@ function updateSendBtnState() {
         if (files.length > 0) {
             e.preventDefault();
             handleFileUpload(files);
+        } else {
+            setTimeout(() => {
+                autoResizeInput(this);
+                updateSendBtnState();
+            }, 0);
         }
     });
 
     document.getElementById('msgArea').addEventListener('scroll', function() {
         const area = this;
-        const isAtBottom = area.scrollHeight - area.scrollTop - area.clientHeight < 50;
-        if (isAtBottom) {
-            document.getElementById('scrollBottomBtn').style.display = 'none';
+        const distFromBottom = area.scrollHeight - area.scrollTop - area.clientHeight;
+        const btn = document.getElementById('scrollBottomBtn');
+        if (distFromBottom > 150) {
+            if (btn) btn.style.display = 'flex';
+        } else {
+            if (btn) btn.style.display = 'none';
             newMsgWhileScrolled = 0;
-            document.getElementById('newMsgCount').style.display = 'none';
+            const cnt = document.getElementById('newMsgCount');
+            if (cnt) cnt.style.display = 'none';
         }
         
         // Trigger loading older messages when scrolled near the top (like WhatsApp)

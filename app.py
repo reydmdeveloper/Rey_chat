@@ -127,6 +127,12 @@ def store_upload(filename, data_or_path, subfolder=""):
     Uses OneDrive when configured, otherwise local disk under UPLOAD_FOLDER.
     `storage_ref` is what gets saved as message file_url.
     """
+    if not subfolder:
+        from datetime import datetime
+        today_str = datetime.now().strftime("%Y-%m-%d")
+        user_part = str(session.get("user_id", "common")) if "user_id" in session else "common"
+        subfolder = f"{today_str}/{user_part}"
+
     cloud = get_cloud()
     if cloud is not None and cloud.is_available():
         ref = cloud.upload_file(filename, data_or_path, subfolder=subfolder)
@@ -3173,6 +3179,19 @@ def api_admin_onedrive_device_code_poll():
         return jsonify({"status": "error", "message": str(e)}), 400
 
 
+@app.route("/api/admin/onedrive/clear-all", methods=["POST"])
+@admin_required
+def api_admin_onedrive_clear_all():
+    """Clear all files and subfolders from OneDrive root folder (Admin only)."""
+    try:
+        import onedrive_storage as cloud
+        success, msg = cloud.clear_all_files()
+        return jsonify({"success": success, "message": msg})
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Failed to clear OneDrive: {str(e)}"}), 500
+
+
+
 @app.route("/chat")
 @login_required
 def chat():
@@ -3405,7 +3424,8 @@ def upload_file():
     
     file = request.files['file']
     conversation_id = request.form.get('conversation_id', 'unknown_chat')
-    subfolder = f"{session['user_id']}/{conversation_id}"
+    today_str = datetime.now().strftime('%Y-%m-%d')
+    subfolder = f"{today_str}/{session['user_id']}/{conversation_id}"
     
     try:
         data = file.read()
@@ -3473,7 +3493,8 @@ def upload_file_chunk():
                                     break
                                 out_f.write(buf)
 
-                subfolder = f"{session['user_id']}/{conversation_id}"
+                today_str = datetime.now().strftime('%Y-%m-%d')
+                subfolder = f"{today_str}/{session['user_id']}/{conversation_id}"
                 ref, stored_name = store_upload(filename, merged_file_path, subfolder=subfolder)
 
                 # Cleanup temp chunk files and directory

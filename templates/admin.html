@@ -352,6 +352,9 @@
                         <button type="button" onclick="testOneDriveConnection()" class="btn-outline" style="padding: 10px 18px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; outline: none;">
                             <i id="testSpinIcon" class="fa-solid fa-plug"></i> Test Connection
                         </button>
+                        <button type="button" onclick="confirmClearOneDriveFiles()" class="btn-outline" style="border-color: rgba(239, 68, 68, 0.4); color: #ef4444; padding: 10px 18px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; outline: none;">
+                            <i id="clearDriveSpinIcon" class="fa-solid fa-trash-can"></i> Clear All Drive Files
+                        </button>
                     </div>
                     
                     <div id="testConnectionResult" style="display: none; padding: 12px 16px; border-radius: 8px; font-size: 13px; line-height: 1.4;"></div>
@@ -792,6 +795,53 @@
             resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> Error testing connection: ${err.message || 'Network error'}`;
         } finally {
             if (spinIcon) spinIcon.className = 'fa-solid fa-plug';
+        }
+    }
+
+    async function confirmClearOneDriveFiles() {
+        if (!confirm("Are you sure you want to delete ALL files and folders inside the OneDrive root folder? This action cannot be undone.")) {
+            return;
+        }
+
+        const spinIcon = document.getElementById('clearDriveSpinIcon');
+        const resultEl = document.getElementById('testConnectionResult');
+        if (spinIcon) spinIcon.className = 'fa-solid fa-spinner fa-spin';
+        if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.style.background = 'rgba(245, 158, 11, 0.15)';
+            resultEl.style.color = '#fbbf24';
+            resultEl.style.border = '1px solid rgba(245, 158, 11, 0.3)';
+            resultEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right: 6px;"></i> Cleaning up OneDrive storage files...';
+        }
+
+        try {
+            const res = await fetch('/api/admin/onedrive/clear-all', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' }
+            });
+            const data = await res.json();
+            if (resultEl) {
+                if (data.success) {
+                    resultEl.style.background = 'rgba(16, 185, 129, 0.15)';
+                    resultEl.style.color = '#34d399';
+                    resultEl.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                    resultEl.innerHTML = `<i class="fa-solid fa-circle-check" style="margin-right: 6px;"></i> <strong>Cleaned:</strong> ${data.message}`;
+                } else {
+                    resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                    resultEl.style.color = '#f87171';
+                    resultEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                    resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> <strong>Clear Failed:</strong> ${data.message}`;
+                }
+            }
+        } catch (err) {
+            if (resultEl) {
+                resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                resultEl.style.color = '#f87171';
+                resultEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> Error clearing files: ${err.message || 'Network error'}`;
+            }
+        } finally {
+            if (spinIcon) spinIcon.className = 'fa-solid fa-trash-can';
         }
     }
 

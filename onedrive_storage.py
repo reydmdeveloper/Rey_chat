@@ -563,3 +563,35 @@ def open_url(ref):
 
     return f"/api/chat/download/{ref}"
 
+
+def clear_all_files():
+    """Delete all files and subfolders stored inside the configured OneDrive root folder."""
+    try:
+        cfg = get_config()
+        root_folder = cfg.get("folder", "rey_chat")
+        token = _get_token()
+        drive_url = _get_drive_base_url(token, cfg)
+        parent_id = _ensure_folder_path(token, root_folder)
+
+        url = f"{drive_url}/items/{parent_id}/children"
+        r = _http("GET", url, headers=_headers(token), timeout=30)
+        if r.status_code != 200:
+            return False, f"Failed to list OneDrive items: {r.text[:120]}"
+
+        items = r.json().get("value", [])
+        if not items:
+            return True, f"OneDrive folder '{root_folder}' is already empty."
+
+        deleted_count = 0
+        for item in items:
+            item_id = item["id"]
+            del_url = f"{drive_url}/items/{item_id}"
+            del_res = _http("DELETE", del_url, headers=_headers(token), timeout=30)
+            if del_res.status_code in (200, 204):
+                deleted_count += 1
+
+        return True, f"Successfully cleared {deleted_count} item(s) from OneDrive folder '{root_folder}'."
+    except Exception as e:
+        return False, f"Error clearing OneDrive files: {str(e)}"
+
+
