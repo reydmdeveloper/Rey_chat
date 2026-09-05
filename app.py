@@ -3532,18 +3532,22 @@ def download_file(filename):
     # PHP Extra Server stored file
     if filename.startswith("php:") and PHP_STORAGE_URL:
         try:
+            import urllib.request
             phpUrl = f"{PHP_STORAGE_URL}/download/{filename}"
-            resp = requests.get(phpUrl, stream=True, timeout=120)
-            if resp.status_code == 200:
+            req = urllib.request.Request(phpUrl)
+            with urllib.request.urlopen(req, timeout=120) as resp:
                 from io import BytesIO
                 ct = resp.headers.get("Content-Type", "application/octet-stream")
                 disp = resp.headers.get("Content-Disposition", "")
                 name = filename.split("/")[-1] if "/" in filename else "file"
                 if "filename=" in disp:
                     name = disp.split("filename=")[-1].strip('"\'')
-                return send_file(BytesIO(resp.content), mimetype=ct,
+                return send_file(BytesIO(resp.read()), mimetype=ct,
                                 as_attachment=True, download_name=name)
-            return jsonify({"success": False, "message": "File not found on PHP server"}), 404
+        except urllib.error.HTTPError as e:
+            if e.code == 404:
+                return jsonify({"success": False, "message": "File not found on PHP server"}), 404
+            return jsonify({"success": False, "message": f"PHP server proxy failed: {str(e)}"}), 502
         except Exception as e:
             return jsonify({"success": False, "message": f"PHP server proxy failed: {str(e)}"}), 502
 

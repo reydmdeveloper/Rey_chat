@@ -16,7 +16,9 @@ import os
 import time
 import json
 import mimetypes
-import requests
+import urllib.request
+import urllib.parse
+import urllib.error
 import mysql.connector
 
 GRAPH = "https://graph.microsoft.com/v1.0"
@@ -32,6 +34,46 @@ DB_CONFIG = {
     "password": os.environ.get("DB_PASSWORD", "AVNS_l-v67tdYKfQUCJZmrp9"),
     "database": os.environ.get("DB_NAME", "reydm_db"),
 }
+
+
+class _HTTPResponse:
+    """Lightweight response wrapper mimicking requests.Response using standard library."""
+    def __init__(self, status_code, content, headers=None):
+        self.status_code = status_code
+        self.content = content if isinstance(content, bytes) else bytes(content)
+        self.text = self.content.decode("utf-8", errors="replace")
+        self.headers = headers or {}
+
+    def json(self):
+        return json.loads(self.text)
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise urllib.error.HTTPError(None, self.status_code, self.text, self.headers, None)
+
+
+def _http(method, url, headers=None, data=None, json_data=None, timeout=30):
+    """Execute HTTP request without external dependencies."""
+    h = headers.copy() if headers else {}
+    body = None
+    if json_data is not None:
+        body = json.dumps(json_data).encode("utf-8")
+        h["Content-Type"] = "application/json"
+    elif data is not None:
+        if isinstance(data, dict):
+            body = urllib.parse.urlencode(data).encode("utf-8")
+            h["Content-Type"] = "application/x-www-form-urlencoded"
+        elif isinstance(data, str):
+            body = data.encode("utf-8")
+        else:
+            body = data  # raw bytes
+
+    req = urllib.request.Request(url, data=body, headers=h, method=method.upper())
+    try:
+        with urllib.request.urlopen(req, timeout=timeout) as resp:
+            return _HTTPResponse(resp.status, resp.read(), dict(resp.headers))
+    except urllib.error.HTTPError as e:
+        return _HTTPResponse(e.code, e.read(), dict(e.headers))
 
 
 def _get_db():
@@ -131,7 +173,7 @@ def start_device_code(client_id=None, tenant_id=None):
         "client_id": cid,
         "scope": DEFAULT_SCOPES,
     }
-    r = requests.post(url, data=data, timeout=20)
+    r = _http("POST", url, data=data, timeout=20)
     if r.status_code != 200:
         raise ValueError(f"Failed to start device flow ({r.status_code}): {r.text}")
     return r.json()
@@ -149,7 +191,7 @@ def poll_device_code(device_code, client_id=None, tenant_id=None):
         "client_id": cid,
         "device_code": device_code,
     }
-    r = requests.post(url, data=data, timeout=20)
+    r = _http("POST", url, data=data, timeout=20)
     res = r.json()
 
     if r.status_code == 200:
@@ -161,7 +203,7 @@ def poll_device_code(device_code, client_id=None, tenant_id=None):
         account_name = ""
         try:
             h = {"Authorization": f"Bearer {access_token}"}
-            user_r = requests.get(f"{GRAPH}/me", headers=h, timeout=10)
+            user_r = _http("GET", f"{GRAPH}/me", headers=h, timeout=10)
             if user_r.status_code == 200:
                 user_data = user_r.json()
                 account_name = user_data.get("displayName") or user_data.get("userPrincipalName") or user_data.get("mail") or ""
@@ -214,7 +256,7 @@ def _get_token(custom_config=None):
             "refresh_token": refresh_token,
             "scope": DEFAULT_SCOPES,
         }
-        r = requests.post(url, data=data, timeout=30)
+        r = _http("POST", url, data=data, timeout=30)
         if r.status_code == 200:
             res = r.json()
             new_acc = res.get("access_token")
@@ -242,7 +284,7 @@ def _get_token(custom_config=None):
             "client_secret": key,
             "scope": "https://graph.microsoft.com/.default",
         }
-        r = requests.post(url, data=data, timeout=30)
+        r = _http("POST", url, data=data, timeout=30)
         if r.status_code != 200:
             try:
                 error_data = r.json()
@@ -271,7 +313,7 @@ def _get_drive_base_url(token, cfg=None):
     h = {"Authorization": f"Bearer {token}"}
     
     try:
-        r = requests.get(f"{GRAPH}/me/drive", headers=h, timeout=10)
+        r = _http("GET", f"{GRAPH}/me/drive", headers=h, timeout=10)
         if r.status_code == 200:
             return f"{GRAPH}/me/drive"
     except Exception:
@@ -283,7 +325,7 @@ def _get_drive_base_url(token, cfg=None):
         return f"{GRAPH}/drives/{drive_id}"
 
     try:
-        r = requests.get(f"{GRAPH}/drives", headers=h, timeout=10)
+        r = _http("GET", f"{GRAPH}/drives", headers=h, timeout=10)
         if r.status_code == 200:
             drives = r.json().get("value", [])
             if drives:
@@ -314,7 +356,7 @@ def test_connection(custom_config=None):
         last_error = ""
         for ep in endpoints:
             try:
-                r = requests.get(ep, headers=h, timeout=15)
+                r = _http("GET", ep, headers=h, timeout=15)
                 if r.status_code == 200:
                     data = r.json()
                     name = data.get("displayName") or data.get("name") or data.get("userPrincipalName") or account_name or "Connected"
@@ -358,7 +400,7 @@ def _ensure_folder_path(token, root_folder="rey_chat"):
         if not name:
             continue
         url = f"{drive_url}/items/{parent_id}/children"
-        r = requests.get(url, headers=_headers(token), timeout=30)
+        r = _http("GET", url, headers=_headers(token), timeout=30)
         r.raise_for_status()
         existing = next((i for i in r.json().get("value", [])
                          if i.get("name") == name and "folder" in i), None)
@@ -370,8 +412,8 @@ def _ensure_folder_path(token, root_folder="rey_chat"):
                 "folder": {},
                 "@microsoft.graph.conflictBehavior": "rename",
             }
-            r = requests.post(url, headers=_headers(token, "application/json"),
-                              json=body, timeout=30)
+            r = _http("POST", url, headers=_headers(token, "application/json"),
+                      json_data=body, timeout=30)
             r.raise_for_status()
             parent_id = r.json()["id"]
     return parent_id
@@ -386,17 +428,17 @@ def _descend(token, parent_id, subfolder):
         if not name:
             continue
         url = f"{drive_url}/items/{parent_id}/children"
-        r = requests.get(url, headers=_headers(token), timeout=30)
+        r = _http("GET", url, headers=_headers(token), timeout=30)
         r.raise_for_status()
         existing = next((i for i in r.json().get("value", [])
                          if i.get("name") == name and "folder" in i), None)
         if existing:
             parent_id = existing["id"]
         else:
-            r = requests.post(url, headers=_headers(token, "application/json"),
-                              json={"name": name, "folder": {},
-                                    "@microsoft.graph.conflictBehavior": "rename"},
-                              timeout=30)
+            r = _http("POST", url, headers=_headers(token, "application/json"),
+                      json_data={"name": name, "folder": {},
+                                 "@microsoft.graph.conflictBehavior": "rename"},
+                      timeout=30)
             r.raise_for_status()
             parent_id = r.json()["id"]
     return parent_id
@@ -416,8 +458,8 @@ def upload_file(filename, data, subfolder=""):
     ct = mimetypes.guess_type(filename)[0] or "application/octet-stream"
     url = (f"{drive_url}/items/{parent_id}:/{filename}:/content"
            f"?@microsoft.graph.conflictBehavior=rename")
-    r = requests.put(url, headers=_headers(token, ct),
-                      data=data, timeout=300)
+    r = _http("PUT", url, headers=_headers(token, ct),
+              data=data, timeout=300)
     r.raise_for_status()
     item = r.json()
     return "od:" + item["id"]
@@ -429,13 +471,13 @@ def download_file(ref):
     token = _get_token()
     drive_url = _get_drive_base_url(token)
     
-    meta = requests.get(f"{drive_url}/items/{item_id}",
-                        headers=_headers(token), timeout=30)
+    meta = _http("GET", f"{drive_url}/items/{item_id}",
+                 headers=_headers(token), timeout=30)
     meta.raise_for_status()
     name = meta.json().get("name", "file")
     ct = meta.json().get("file", {}).get("mimeType", "application/octet-stream")
-    dl = requests.get(f"{drive_url}/items/{item_id}/content",
-                       headers=_headers(token), timeout=300)
+    dl = _http("GET", f"{drive_url}/items/{item_id}/content",
+               headers=_headers(token), timeout=300)
     dl.raise_for_status()
     return dl.content, ct, name
 
@@ -447,7 +489,7 @@ def open_url(ref):
     drive_url = _get_drive_base_url(token)
     
     try:
-        r = requests.get(f"{drive_url}/items/{item_id}", headers=_headers(token), timeout=15)
+        r = _http("GET", f"{drive_url}/items/{item_id}", headers=_headers(token), timeout=15)
         if r.status_code == 200:
             dl_url = r.json().get("@microsoft.graph.downloadUrl")
             if dl_url:
@@ -459,13 +501,14 @@ def open_url(ref):
         pass
 
     try:
-        r = requests.post(f"{drive_url}/items/{item_id}/createLink",
-                          headers=_headers(token, "application/json"),
-                          json={"type": "view", "scope": "anonymous"},
-                          timeout=30)
+        r = _http("POST", f"{drive_url}/items/{item_id}/createLink",
+                  headers=_headers(token, "application/json"),
+                  json_data={"type": "view", "scope": "anonymous"},
+                  timeout=30)
         if r.status_code in (200, 201):
             return r.json().get("link", {}).get("webUrl")
     except Exception:
         pass
 
     return f"/api/chat/download/{ref}"
+
