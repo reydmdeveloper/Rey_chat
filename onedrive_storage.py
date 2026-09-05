@@ -444,8 +444,8 @@ def _descend(token, parent_id, subfolder):
     return parent_id
 
 
-def upload_file(filename, data, subfolder=""):
-    """Upload bytes `data` as `filename` under ROOT_FOLDER/[subfolder].
+def upload_file(filename, data_or_path, subfolder=""):
+    """Upload bytes or file from path as `filename` under ROOT_FOLDER/[subfolder].
     Returns a storage reference string like 'od:<itemId>'."""
     cfg = get_config()
     root_folder = cfg.get("folder", "rey_chat")
@@ -455,11 +455,62 @@ def upload_file(filename, data, subfolder=""):
     parent_id = _ensure_folder_path(token, root_folder)
     parent_id = _descend(token, parent_id, subfolder)
 
+    safe_name = urllib.parse.quote(filename)
     ct = mimetypes.guess_type(filename)[0] or "application/octet-stream"
-    url = (f"{drive_url}/items/{parent_id}:/{filename}:/content"
+
+    is_file_path = isinstance(data_or_path, (str, os.PathLike)) and os.path.isfile(data_or_path)
+    file_size = os.path.getsize(data_or_path) if is_file_path else len(data_or_path)
+
+    # For files > 4MB (including 4GB+ files), use Microsoft Graph upload session with chunked streaming
+    if file_size > 4 * 1024 * 1024:
+        session_url = f"{drive_url}/items/{parent_id}:/{safe_name}:/createUploadSession"
+        session_body = {
+            "item": {
+                "@microsoft.graph.conflictBehavior": "rename",
+                "name": filename
+            }
+        }
+        s_res = _http("POST", session_url, headers=_headers(token, "application/json"), json_data=session_body, timeout=30)
+        s_res.raise_for_status()
+        upload_url = s_res.json()["uploadUrl"]
+
+        chunk_size = 5 * 1024 * 1024  # 5MB chunk (multiple of 320 KB required by Graph API)
+        start = 0
+        last_resp = None
+
+        if is_file_path:
+            with open(data_or_path, "rb") as f:
+                while start < file_size:
+                    end = min(start + chunk_size, file_size)
+                    chunk = f.read(end - start)
+                    chunk_headers = {
+                        "Content-Length": str(len(chunk)),
+                        "Content-Range": f"bytes {start}-{end - 1}/{file_size}"
+                    }
+                    last_resp = _http("PUT", upload_url, headers=chunk_headers, data=chunk, timeout=300)
+                    last_resp.raise_for_status()
+                    start = end
+        else:
+            while start < file_size:
+                end = min(start + chunk_size, file_size)
+                chunk = data_or_path[start:end]
+                chunk_headers = {
+                    "Content-Length": str(len(chunk)),
+                    "Content-Range": f"bytes {start}-{end - 1}/{file_size}"
+                }
+                last_resp = _http("PUT", upload_url, headers=chunk_headers, data=chunk, timeout=300)
+                last_resp.raise_for_status()
+                start = end
+
+        item = last_resp.json()
+        return "od:" + item["id"]
+
+    # Simple PUT upload for files up to 4MB
+    data_bytes = open(data_or_path, "rb").read() if is_file_path else data_or_path
+    url = (f"{drive_url}/items/{parent_id}:/{safe_name}:/content"
            f"?@microsoft.graph.conflictBehavior=rename")
     r = _http("PUT", url, headers=_headers(token, ct),
-              data=data, timeout=300)
+              data=data_bytes, timeout=300)
     r.raise_for_status()
     item = r.json()
     return "od:" + item["id"]

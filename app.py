@@ -121,16 +121,17 @@ def get_cloud():
         return None
 
 
-def store_upload(filename, data, subfolder=""):
-    """Persist uploaded file bytes. Returns (storage_ref, stored_name).
+def store_upload(filename, data_or_path, subfolder=""):
+    """Persist uploaded file bytes or file from path. Returns (storage_ref, stored_name).
 
     Uses OneDrive when configured, otherwise local disk under UPLOAD_FOLDER.
     `storage_ref` is what gets saved as message file_url.
     """
     cloud = get_cloud()
     if cloud is not None and cloud.is_available():
-        ref = cloud.upload_file(filename, data, subfolder=subfolder)
+        ref = cloud.upload_file(filename, data_or_path, subfolder=subfolder)
         return ref, filename
+
     # Local disk fallback
     folder = os.path.join(UPLOAD_FOLDER, subfolder) if subfolder else UPLOAD_FOLDER
     os.makedirs(folder, exist_ok=True)
@@ -142,8 +143,15 @@ def store_upload(filename, data, subfolder=""):
         safe = f"{base}_{counter}{ext}"
         save_path = os.path.join(folder, safe)
         counter += 1
-    with open(save_path, "wb") as f:
-        f.write(data)
+
+    is_file_path = isinstance(data_or_path, (str, os.PathLike)) and os.path.isfile(data_or_path)
+    if is_file_path:
+        import shutil
+        shutil.copyfile(data_or_path, save_path)
+    else:
+        with open(save_path, "wb") as f:
+            f.write(data_or_path)
+
     ref = f"{subfolder}/{safe}" if subfolder else safe
     return ref, safe
 
@@ -3452,13 +3460,21 @@ def upload_file_chunk():
                 break
         
         if all_chunks_received:
-            # Merge all chunks into memory, then persist via store_upload
+            # Merge all chunks into a temporary file on disk, then persist via store_upload
+            merged_file_path = os.path.join(temp_chunk_dir, "merged.tmp")
             try:
-                merged = b""
-                for i in range(total_chunks):
-                    p = os.path.join(temp_chunk_dir, f"chunk_{i}")
-                    with open(p, 'rb') as f:
-                        merged += f.read()
+                with open(merged_file_path, "wb") as out_f:
+                    for i in range(total_chunks):
+                        p = os.path.join(temp_chunk_dir, f"chunk_{i}")
+                        with open(p, "rb") as in_f:
+                            while True:
+                                buf = in_f.read(1024 * 1024)
+                                if not buf:
+                                    break
+                                out_f.write(buf)
+
+                subfolder = f"{session['user_id']}/{conversation_id}"
+                ref, stored_name = store_upload(filename, merged_file_path, subfolder=subfolder)
 
                 # Cleanup temp chunk files and directory
                 for i in range(total_chunks):
@@ -3468,12 +3484,12 @@ def upload_file_chunk():
                     except Exception:
                         pass
                 try:
+                    if os.path.exists(merged_file_path):
+                        os.remove(merged_file_path)
                     os.rmdir(temp_chunk_dir)
                 except Exception:
                     pass
 
-                subfolder = f"{session['user_id']}/{conversation_id}"
-                ref, stored_name = store_upload(filename, merged, subfolder=subfolder)
                 return jsonify({
                     "success": True,
                     "file_name": stored_name,
