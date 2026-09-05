@@ -1,23 +1,19 @@
 """
 OneDrive (Microsoft Graph) cloud storage backend.
 
-Used when there is NO central server: every PC runs its own app instance and
-they only share the database. Files are stored in a single shared Microsoft
-account OneDrive so they are reachable from any instance.
+Files are stored in a Microsoft OneDrive account via Microsoft Graph API
+so they are reachable from any client instance.
 
-Auth model: Azure AD app (daemon / client-credentials flow) using a
-shared service account. Credentials come from environment variables:
-
-    ONEDRIVE_CLIENT_ID     - Azure AD application (client) ID
-    ONEDRIVE_CLIENT_SECRET - application client secret
-    ONEDRIVE_TENANT_ID     - directory (tenant) ID
-    ONEDRIVE_FOLDER        - root folder in OneDrive (default: rey_chat)
-
-If any of these are missing, the module reports itself as unavailable and the
-app falls back to local disk storage.
+Configuration is dynamically loaded from the MySQL database (admin_settings table)
+with fallback to environment variables:
+    ONEDRIVE_KEY / ONEDRIVE_CLIENT_SECRET - OneDrive API Key / Client Secret
+    ONEDRIVE_CLIENT_ID                   - Azure AD application (client) ID
+    ONEDRIVE_TENANT_ID                   - Directory (tenant) ID (default: common)
+    ONEDRIVE_FOLDER                      - Root folder in OneDrive (default: rey_chat)
 """
 
 import os
+import json
 import mimetypes
 import requests
 
@@ -25,33 +21,102 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 TOKEN_URL_TPL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 SCOPES = "https://graph.microsoft.com/.default"
 
-CLIENT_ID = os.environ.get("ONEDRIVE_CLIENT_ID")
-CLIENT_SECRET = os.environ.get("ONEDRIVE_CLIENT_SECRET")
-TENANT_ID = os.environ.get("ONEDRIVE_TENANT_ID")
-ROOT_FOLDER = os.environ.get("ONEDRIVE_FOLDER", "rey_chat").strip("/")
 
-_available = None  # lazily cached
+def get_config():
+    """Retrieve OneDrive configuration from database (admin_settings) or environment."""
+    config = {
+        "key": os.environ.get("ONEDRIVE_KEY") or os.environ.get("ONEDRIVE_CLIENT_SECRET", ""),
+        "client_id": os.environ.get("ONEDRIVE_CLIENT_ID", ""),
+        "client_secret": os.environ.get("ONEDRIVE_CLIENT_SECRET") or os.environ.get("ONEDRIVE_KEY", ""),
+        "tenant_id": os.environ.get("ONEDRIVE_TENANT_ID", "common"),
+        "folder": os.environ.get("ONEDRIVE_FOLDER", "rey_chat").strip("/") or "rey_chat",
+    }
+
+    try:
+        from app import get_db
+        conn = get_db()
+        if conn:
+            cur = conn.cursor(dictionary=True)
+            cur.execute("SELECT setting_value FROM admin_settings WHERE setting_key = 'onedrive_config'")
+            row = cur.fetchone()
+            cur.close()
+            conn.close()
+            if row and row.get("setting_value"):
+                db_cfg = json.loads(row["setting_value"])
+                if isinstance(db_cfg, dict):
+                    for k, v in db_cfg.items():
+                        if v is not None and str(v).strip():
+                            config[k] = str(v).strip()
+                            if k == "key" and not config.get("client_secret"):
+                                config["client_secret"] = str(v).strip()
+    except Exception:
+        pass
+
+    return config
 
 
 def is_available():
-    """True if all required OneDrive credentials are configured."""
-    global _available
-    if _available is None:
-        _available = bool(CLIENT_ID and CLIENT_SECRET and TENANT_ID)
-    return _available
+    """True if OneDrive key/credentials are configured."""
+    cfg = get_config()
+    key = cfg.get("key") or cfg.get("client_secret")
+    return bool(key)
 
 
-def _get_token():
-    url = TOKEN_URL_TPL.format(tenant=TENANT_ID)
-    data = {
-        "grant_type": "client_credentials",
-        "client_id": CLIENT_ID,
-        "client_secret": CLIENT_SECRET,
-        "scope": SCOPES,
-    }
-    r = requests.post(url, data=data, timeout=30)
-    r.raise_for_status()
-    return r.json()["access_token"]
+def _get_token(custom_config=None):
+    """Obtain Microsoft Graph OAuth2 bearer access token."""
+    cfg = custom_config or get_config()
+    key = (cfg.get("key") or cfg.get("client_secret") or "").strip()
+    client_id = (cfg.get("client_id") or "").strip()
+    tenant_id = (cfg.get("tenant_id") or "common").strip()
+
+    if not key:
+        raise ValueError("OneDrive API Key / Client Secret is missing. Please configure it in Admin Settings.")
+
+    # Check if the key provided is already a direct access token (JWT or Microsoft token)
+    if (key.startswith("eyJ") or key.startswith("Ew") or len(key) > 500) and not client_id:
+        return key
+
+    # If client_id is provided, use OAuth2 client_credentials flow
+    if client_id:
+        url = TOKEN_URL_TPL.format(tenant=tenant_id or "common")
+        data = {
+            "grant_type": "client_credentials",
+            "client_id": client_id,
+            "client_secret": key,
+            "scope": SCOPES,
+        }
+        r = requests.post(url, data=data, timeout=30)
+        if r.status_code != 200:
+            error_data = r.json() if r.headers.get("content-type", "").startswith("application/json") else {}
+            error_desc = error_data.get("error_description") or r.text[:250]
+            raise ValueError(f"Microsoft OAuth authentication failed ({r.status_code}): {error_desc}")
+        return r.json()["access_token"]
+
+    # If only key is provided and client_id is omitted, try using key directly as Bearer token
+    return key
+
+
+def test_connection(custom_config=None):
+    """Test OneDrive connectivity and return (success, message)."""
+    try:
+        token = _get_token(custom_config)
+        h = {"Authorization": f"Bearer {token}"}
+        
+        # Test Graph API with /me/drive or /drive/root
+        r = requests.get(f"{GRAPH}/me/drive/root", headers=h, timeout=15)
+        if r.status_code == 200:
+            drive_data = r.json()
+            drive_name = drive_data.get("name", "Root")
+            return True, f"Successfully connected to OneDrive! (Drive root: {drive_name})"
+        
+        # Try alternate tenant root endpoint
+        r2 = requests.get(f"{GRAPH}/drive/root", headers=h, timeout=15)
+        if r2.status_code == 200:
+            return True, "Successfully connected to OneDrive Cloud Storage!"
+
+        return False, f"Connected to Microsoft Auth, but Graph drive check returned status {r.status_code}: {r.text[:200]}"
+    except Exception as e:
+        return False, f"Connection failed: {str(e)}"
 
 
 def _headers(token, content_type=None):

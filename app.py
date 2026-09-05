@@ -2983,6 +2983,40 @@ def chat_admin_panel():
                     cur.execute("UPDATE admin_settings SET setting_value = %s WHERE setting_key = 'global_theme'", (theme_json,))
                 conn.commit()
                 flash(f"Global theme changed successfully to {theme_name}!", "success")
+        elif action == "save_onedrive":
+            od_key = (request.form.get("onedrive_key") or "").strip()
+            od_client_id = (request.form.get("onedrive_client_id") or "").strip()
+            od_tenant_id = (request.form.get("onedrive_tenant_id") or "common").strip()
+            od_folder = (request.form.get("onedrive_folder") or "rey_chat").strip()
+
+            # Auto-parse JSON if pasted into the key input
+            if od_key.startswith("{") and od_key.endswith("}"):
+                try:
+                    parsed = json.loads(od_key)
+                    if isinstance(parsed, dict):
+                        od_key = parsed.get("client_secret") or parsed.get("key") or od_key
+                        od_client_id = parsed.get("client_id") or od_client_id
+                        od_tenant_id = parsed.get("tenant_id") or od_tenant_id
+                        od_folder = parsed.get("folder") or od_folder
+                except Exception:
+                    pass
+
+            od_config = {
+                "key": od_key,
+                "client_id": od_client_id,
+                "client_secret": od_key,
+                "tenant_id": od_tenant_id or "common",
+                "folder": od_folder or "rey_chat",
+            }
+            od_json = json.dumps(od_config)
+
+            cur.execute("SELECT id FROM admin_settings WHERE setting_key = 'onedrive_config'")
+            if not cur.fetchone():
+                cur.execute("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('onedrive_config', %s)", (od_json,))
+            else:
+                cur.execute("UPDATE admin_settings SET setting_value = %s WHERE setting_key = 'onedrive_config'", (od_json,))
+            conn.commit()
+            flash("OneDrive configuration and key saved successfully!", "success")
     
     # Calculate storage folder statistics
     upload_count = 0
@@ -3002,6 +3036,25 @@ def chat_admin_panel():
     cur.execute("SELECT setting_value FROM admin_settings WHERE setting_key = 'global_theme'")
     theme_row = cur.fetchone()
     current_theme = json.loads(theme_row["setting_value"]) if theme_row else PRESET_THEMES["Sky Blue"]
+
+    # Load OneDrive configuration from database / environment
+    cur.execute("SELECT setting_value FROM admin_settings WHERE setting_key = 'onedrive_config'")
+    od_row = cur.fetchone()
+    if od_row and od_row["setting_value"]:
+        try:
+            onedrive_config = json.loads(od_row["setting_value"])
+        except Exception:
+            onedrive_config = {}
+    else:
+        onedrive_config = {
+            "key": os.environ.get("ONEDRIVE_KEY") or os.environ.get("ONEDRIVE_CLIENT_SECRET", ""),
+            "client_id": os.environ.get("ONEDRIVE_CLIENT_ID", ""),
+            "client_secret": os.environ.get("ONEDRIVE_CLIENT_SECRET") or os.environ.get("ONEDRIVE_KEY", ""),
+            "tenant_id": os.environ.get("ONEDRIVE_TENANT_ID", "common"),
+            "folder": os.environ.get("ONEDRIVE_FOLDER", "rey_chat"),
+        }
+    
+    onedrive_active = bool(onedrive_config.get("key") or onedrive_config.get("client_secret"))
     
     cur.close()
     conn.close()
@@ -3013,8 +3066,51 @@ def chat_admin_panel():
         upload_size_mb=round(upload_size_mb, 2), 
         users=users, 
         current_theme=current_theme, 
-        preset_themes=PRESET_THEMES
+        preset_themes=PRESET_THEMES,
+        onedrive_config=onedrive_config,
+        onedrive_active=onedrive_active
     )
+
+@app.route("/api/admin/onedrive/test", methods=["POST"])
+@admin_required
+def api_admin_onedrive_test():
+    """Test OneDrive credentials and connectivity."""
+    if cloud is None:
+        return jsonify({"success": False, "message": "OneDrive storage module is not available on this server."})
+
+    data = request.get_json(silent=True) or request.form or {}
+    key = (data.get("onedrive_key") or data.get("key") or "").strip()
+    client_id = (data.get("onedrive_client_id") or data.get("client_id") or "").strip()
+    tenant_id = (data.get("onedrive_tenant_id") or data.get("tenant_id") or "common").strip()
+    folder = (data.get("onedrive_folder") or data.get("folder") or "rey_chat").strip()
+
+    # Auto parse JSON if pasted in key
+    if key.startswith("{") and key.endswith("}"):
+        try:
+            parsed = json.loads(key)
+            if isinstance(parsed, dict):
+                key = parsed.get("client_secret") or parsed.get("key") or key
+                client_id = parsed.get("client_id") or client_id
+                tenant_id = parsed.get("tenant_id") or tenant_id
+                folder = parsed.get("folder") or folder
+        except Exception:
+            pass
+
+    test_cfg = {
+        "key": key,
+        "client_secret": key,
+        "client_id": client_id,
+        "tenant_id": tenant_id or "common",
+        "folder": folder or "rey_chat",
+    }
+
+    if not key:
+        # Test saved configuration
+        success, msg = cloud.test_connection()
+        return jsonify({"success": success, "message": msg})
+
+    success, msg = cloud.test_connection(custom_config=test_cfg)
+    return jsonify({"success": success, "message": msg})
 
 @app.route("/chat")
 @login_required

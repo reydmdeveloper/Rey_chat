@@ -231,6 +231,90 @@
             </div>
         </div>
 
+        <!-- Microsoft OneDrive Cloud Storage Config -->
+        <div class="card" style="grid-column: span 2;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 15px; flex-wrap: wrap; gap: 10px;">
+                <h3 style="margin: 0; display: flex; align-items: center; gap: 10px;">
+                    <i class="fa-brands fa-microsoft" style="color: #0078d4; font-size: 20px;"></i>
+                    <span>Microsoft OneDrive Cloud Storage Config</span>
+                </h3>
+                {% if onedrive_active %}
+                <span class="role-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-check"></i> Key Configured & Active
+                </span>
+                {% else %}
+                <span class="role-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                    <i class="fa-solid fa-circle-exclamation"></i> Key Not Configured
+                </span>
+                {% endif %}
+            </div>
+            
+            <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
+                Enter your Microsoft OneDrive / Azure AD API Key (Client Secret) to enable cloud storage. Chat files and attachments will be saved to OneDrive and accessible across all devices in real-time.
+            </p>
+
+            <form method="POST" id="onedriveConfigForm">
+                <input type="hidden" name="action" value="save_onedrive">
+                
+                <div style="display: flex; flex-direction: column; gap: 18px;">
+                    <!-- Primary OneDrive Key Input -->
+                    <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center;">
+                            <label style="font-size: 13px; color: var(--accent); font-weight: 600;">
+                                <i class="fa-solid fa-key" style="margin-right: 5px;"></i> OneDrive Key / Client Secret <span style="color: #f87171;">*</span>
+                            </label>
+                            <button type="button" onclick="toggleKeyVisibility()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; outline: none;">
+                                <i id="eyeIcon" class="fa-solid fa-eye"></i> <span id="eyeText">Show Key</span>
+                            </button>
+                        </div>
+                        <input type="password" id="onedriveKeyInput" name="onedrive_key" value="{{ onedrive_config.key or onedrive_config.client_secret or '' }}" placeholder="Paste your OneDrive API Key / Client Secret or Access Token here" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box; font-family: monospace; font-size: 13px;" required>
+                        <span style="font-size: 11px; color: var(--text-muted);">
+                            Enter your Azure AD App Client Secret Key, direct API Key, or paste your credentials JSON blob.
+                        </span>
+                    </div>
+
+                    <!-- Collapsible / Advanced Azure Parameters -->
+                    <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 14px;">
+                        <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleAdvancedOneDrive()">
+                            <span style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
+                                <i class="fa-solid fa-sliders" style="color: #0078d4;"></i> Additional Azure AD Parameters (Optional)
+                            </span>
+                            <i id="advancedChevron" class="fa-solid fa-chevron-down" style="color: var(--text-muted); font-size: 12px; transition: transform 0.2s;"></i>
+                        </div>
+                        
+                        <div id="advancedOneDriveSection" style="display: none; margin-top: 15px; flex-direction: column; gap: 12px;">
+                            <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
+                                <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Client ID (Application ID)</label>
+                                    <input type="text" id="onedriveClientIdInput" name="onedrive_client_id" value="{{ onedrive_config.client_id or '' }}" placeholder="e.g. 00000000-0000-0000-0000-000000000000" style="width: 100%; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: white; outline: none; box-sizing: border-box; font-size: 12px; font-family: monospace;">
+                                </div>
+                                <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Tenant ID (Directory ID)</label>
+                                    <input type="text" id="onedriveTenantIdInput" name="onedrive_tenant_id" value="{{ onedrive_config.tenant_id or 'common' }}" placeholder="common, consumers, or Tenant UUID" style="width: 100%; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: white; outline: none; box-sizing: border-box; font-size: 12px; font-family: monospace;">
+                                </div>
+                                <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
+                                    <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">OneDrive Root Folder</label>
+                                    <input type="text" id="onedriveFolderInput" name="onedrive_folder" value="{{ onedrive_config.folder or 'rey_chat' }}" placeholder="rey_chat" style="width: 100%; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: white; outline: none; box-sizing: border-box; font-size: 12px;">
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+
+                    <!-- Action Buttons -->
+                    <div style="display: flex; gap: 12px; align-items: center; flex-wrap: wrap;">
+                        <button type="submit" class="btn-primary" style="background: linear-gradient(135deg, #0078d4, #005a9e); border: none; cursor: pointer; outline: none; padding: 10px 22px; font-weight: 600; display: inline-flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-floppy-disk"></i> Save OneDrive Key
+                        </button>
+                        <button type="button" onclick="testOneDriveConnection()" class="btn-outline" style="padding: 10px 18px; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; outline: none;">
+                            <i id="testSpinIcon" class="fa-solid fa-plug"></i> Test Connection
+                        </button>
+                    </div>
+                    
+                    <div id="testConnectionResult" style="display: none; padding: 12px 16px; border-radius: 8px; font-size: 13px; line-height: 1.4;"></div>
+                </div>
+            </form>
+        </div>
+
         <!-- Add User -->
         <div class="card">
             <h3><i class="fa-solid fa-user-plus"></i> Add New User</h3>
@@ -565,6 +649,105 @@
         } catch (err) {
             console.error("Error in deleteUserCheck:", err);
             alert("An error occurred while attempting to delete the user.");
+        }
+    }
+
+    // OneDrive Key Visibility Toggle
+    function toggleKeyVisibility() {
+        const inp = document.getElementById('onedriveKeyInput');
+        const icon = document.getElementById('eyeIcon');
+        const text = document.getElementById('eyeText');
+        if (!inp) return;
+        
+        if (inp.type === 'password') {
+            inp.type = 'text';
+            if (icon) icon.className = 'fa-solid fa-eye-slash';
+            if (text) text.textContent = 'Hide Key';
+        } else {
+            inp.type = 'password';
+            if (icon) icon.className = 'fa-solid fa-eye';
+            if (text) text.textContent = 'Show Key';
+        }
+    }
+
+    // Toggle Advanced OneDrive Parameters
+    function toggleAdvancedOneDrive() {
+        const sec = document.getElementById('advancedOneDriveSection');
+        const chev = document.getElementById('advancedChevron');
+        if (!sec) return;
+        
+        if (sec.style.display === 'none' || !sec.style.display) {
+            sec.style.display = 'flex';
+            if (chev) chev.style.transform = 'rotate(180deg)';
+        } else {
+            sec.style.display = 'none';
+            if (chev) chev.style.transform = 'rotate(0deg)';
+        }
+    }
+
+    // Test OneDrive Connection Live
+    async function testOneDriveConnection() {
+        const keyVal = (document.getElementById('onedriveKeyInput')?.value || '').trim();
+        const clientIdVal = (document.getElementById('onedriveClientIdInput')?.value || '').trim();
+        const tenantIdVal = (document.getElementById('onedriveTenantIdInput')?.value || '').trim();
+        const folderVal = (document.getElementById('onedriveFolderInput')?.value || '').trim();
+        
+        const resultEl = document.getElementById('testConnectionResult');
+        const spinIcon = document.getElementById('testSpinIcon');
+        
+        if (!keyVal) {
+            if (resultEl) {
+                resultEl.style.display = 'block';
+                resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                resultEl.style.color = '#f87171';
+                resultEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                resultEl.innerHTML = '<i class="fa-solid fa-circle-exclamation" style="margin-right: 6px;"></i> Please paste your OneDrive Key / Client Secret into the input field first.';
+            }
+            return;
+        }
+
+        if (resultEl) {
+            resultEl.style.display = 'block';
+            resultEl.style.background = 'rgba(59, 130, 246, 0.15)';
+            resultEl.style.color = '#93c5fd';
+            resultEl.style.border = '1px solid rgba(59, 130, 246, 0.3)';
+            resultEl.innerHTML = '<i class="fa-solid fa-spinner fa-spin" style="margin-right: 6px;"></i> Testing connection to Microsoft Graph & OneDrive...';
+        }
+        
+        if (spinIcon) spinIcon.className = 'fa-solid fa-spinner fa-spin';
+
+        try {
+            const res = await fetch('/api/admin/onedrive/test', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    onedrive_key: keyVal,
+                    onedrive_client_id: clientIdVal,
+                    onedrive_tenant_id: tenantIdVal,
+                    onedrive_folder: folderVal
+                })
+            });
+            const data = await res.json();
+            
+            if (data.success) {
+                resultEl.style.background = 'rgba(16, 185, 129, 0.15)';
+                resultEl.style.color = '#34d399';
+                resultEl.style.border = '1px solid rgba(16, 185, 129, 0.3)';
+                resultEl.innerHTML = `<i class="fa-solid fa-circle-check" style="margin-right: 6px;"></i> <strong>Success:</strong> ${data.message || 'Connected to Microsoft OneDrive successfully!'}`;
+            } else {
+                resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+                resultEl.style.color = '#f87171';
+                resultEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+                resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> <strong>Connection Failed:</strong> ${data.message || 'Unable to authenticate with Microsoft OneDrive.'}`;
+            }
+        } catch (err) {
+            console.error("OneDrive connection test error:", err);
+            resultEl.style.background = 'rgba(239, 68, 68, 0.15)';
+            resultEl.style.color = '#f87171';
+            resultEl.style.border = '1px solid rgba(239, 68, 68, 0.3)';
+            resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> Error testing connection: ${err.message || 'Network error'}`;
+        } finally {
+            if (spinIcon) spinIcon.className = 'fa-solid fa-plug';
         }
     }
 
