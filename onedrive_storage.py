@@ -25,7 +25,7 @@ GRAPH = "https://graph.microsoft.com/v1.0"
 TOKEN_URL_TPL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/token"
 DEVICE_CODE_URL_TPL = "https://login.microsoftonline.com/{tenant}/oauth2/v2.0/devicecode"
 DEFAULT_CLIENT_ID = "a2373e8f-a275-4247-b4ee-9750866b72d7"
-DEFAULT_SCOPES = "offline_access Files.ReadWrite Files.ReadWrite.All User.Read"
+DEFAULT_SCOPES = "offline_access Files.ReadWrite User.Read"
 
 DB_CONFIG = {
     "host": os.environ.get("DB_HOST", "mysql-21f1e29c-reydmdeveloper-2e13.i.aivencloud.com"),
