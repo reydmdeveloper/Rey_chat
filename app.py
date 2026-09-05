@@ -112,10 +112,13 @@ PHP_STORAGE_URL = os.environ.get("PHP_STORAGE_URL", "").rstrip("/")
 # exists: files live in a shared OneDrive account so every app instance
 # (sharing only the DB) can read/write them. Falls back to local disk
 # when credentials are not configured (see onedrive_storage.py).
-try:
-    import onedrive_storage as cloud
-except Exception:
-    cloud = None
+def get_cloud():
+    """Dynamically load and return onedrive_storage module."""
+    try:
+        import onedrive_storage as od
+        return od
+    except Exception:
+        return None
 
 
 def store_upload(filename, data, subfolder=""):
@@ -124,6 +127,7 @@ def store_upload(filename, data, subfolder=""):
     Uses OneDrive when configured, otherwise local disk under UPLOAD_FOLDER.
     `storage_ref` is what gets saved as message file_url.
     """
+    cloud = get_cloud()
     if cloud is not None and cloud.is_available():
         ref = cloud.upload_file(filename, data, subfolder=subfolder)
         return ref, filename
@@ -3075,13 +3079,14 @@ def chat_admin_panel():
 @admin_required
 def api_admin_onedrive_test():
     """Test OneDrive credentials and connectivity."""
+    cloud = get_cloud()
     if cloud is None:
-        return jsonify({"success": False, "message": "OneDrive storage module is not available on this server."})
+        return jsonify({"success": False, "message": "OneDrive storage module could not be loaded. Please ensure requests is installed."})
 
     data = request.get_json(silent=True) or request.form or {}
     key = (data.get("onedrive_key") or data.get("key") or "").strip()
     client_id = (data.get("onedrive_client_id") or data.get("client_id") or "").strip()
-    tenant_id = (data.get("onedrive_tenant_id") or data.get("tenant_id") or "common").strip()
+    tenant_id = (data.get("onedrive_tenant_id") or data.get("tenant_id") or "").strip()
     folder = (data.get("onedrive_folder") or data.get("folder") or "rey_chat").strip()
 
     # Auto parse JSON if pasted in key
@@ -3100,7 +3105,7 @@ def api_admin_onedrive_test():
         "key": key,
         "client_secret": key,
         "client_id": client_id,
-        "tenant_id": tenant_id or "common",
+        "tenant_id": tenant_id,
         "folder": folder or "rey_chat",
     }
 
@@ -3495,6 +3500,7 @@ def download_file(filename):
             return jsonify({"success": False, "message": f"PHP server proxy failed: {str(e)}"}), 502
 
     # Cloud (OneDrive) stored file
+    cloud = get_cloud()
     if cloud is not None and cloud.is_available() and filename.startswith("od:"):
         try:
             data, ct, name = cloud.download_file(filename)
@@ -3528,6 +3534,7 @@ def open_file(filename):
             return jsonify({"success": False, "message": f"PHP server redirect failed: {str(e)}"}), 502
 
     # Cloud (OneDrive): open via a temporary view link
+    cloud = get_cloud()
     if cloud is not None and cloud.is_available() and filename.startswith("od:"):
         try:
             url = cloud.open_url(filename)
