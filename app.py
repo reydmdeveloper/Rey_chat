@@ -3551,6 +3551,8 @@ def download_file(filename):
         except Exception as e:
             return jsonify({"success": False, "message": f"PHP server proxy failed: {str(e)}"}), 502
 
+    as_attachment = request.args.get('download', '0') == '1'
+
     # Cloud (OneDrive) stored file
     cloud = get_cloud()
     if cloud is not None and cloud.is_available() and filename.startswith("od:"):
@@ -3558,12 +3560,11 @@ def download_file(filename):
             data, ct, name = cloud.download_file(filename)
             from io import BytesIO
             return send_file(BytesIO(data), mimetype=ct,
-                            as_attachment=True, download_name=name)
+                            as_attachment=as_attachment, download_name=name)
         except Exception as e:
             return jsonify({"success": False, "message": f"Cloud download failed: {str(e)}"}), 404
 
     resolved_path = find_file_fallback(UPLOAD_FOLDER, filename)
-    as_attachment = request.args.get('download', '0') == '1'
     if resolved_path and os.path.exists(resolved_path):
         base = os.path.basename(resolved_path)
         return send_file(resolved_path, as_attachment=as_attachment, download_name=base)
@@ -3585,16 +3586,16 @@ def open_file(filename):
         except Exception as e:
             return jsonify({"success": False, "message": f"PHP server redirect failed: {str(e)}"}), 502
 
-    # Cloud (OneDrive): open via a temporary view link
+    # Cloud (OneDrive): open via inline streaming or web link
     cloud = get_cloud()
     if cloud is not None and cloud.is_available() and filename.startswith("od:"):
         try:
             url = cloud.open_url(filename)
-            if url:
+            if url and url.startswith("http"):
                 return redirect(url)
         except Exception:
             pass
-        return jsonify({"success": False, "message": "Failed to open cloud file"}), 404
+        return redirect(f"/api/chat/download/{filename}?download=0")
 
     file_path = find_file_fallback(UPLOAD_FOLDER, filename)
     if not file_path or not os.path.exists(file_path):
