@@ -301,16 +301,17 @@ def test_connection(custom_config=None):
         token = _get_token(custom_config)
         h = {"Authorization": f"Bearer {token}"}
         
+        # Test Graph API endpoints
         endpoints = [
             f"{GRAPH}/me/drive/root",
             f"{GRAPH}/me/drive",
             f"{GRAPH}/me",
             f"{GRAPH}/drives",
             f"{GRAPH}/drive/root",
-            f"{GRAPH}/organization",
         ]
         
         account_name = cfg.get("account_name") or ""
+        last_error = ""
         for ep in endpoints:
             try:
                 r = requests.get(ep, headers=h, timeout=15)
@@ -318,10 +319,24 @@ def test_connection(custom_config=None):
                     data = r.json()
                     name = data.get("displayName") or data.get("name") or data.get("userPrincipalName") or account_name or "Connected"
                     return True, f"Successfully authenticated with Microsoft Graph & OneDrive! ({name})"
-            except Exception:
-                pass
+                else:
+                    try:
+                        err_json = r.json().get("error", {})
+                        last_error = err_json.get("message") or r.text[:120]
+                    except Exception:
+                        last_error = r.text[:120]
+            except Exception as ex:
+                last_error = str(ex)
 
-        return True, "Successfully authenticated with Microsoft OAuth token!"
+        # If token was issued via client credentials but drive endpoints failed due to missing consent
+        if cfg.get("client_id") and not cfg.get("refresh_token"):
+            return False, (
+                "Azure OAuth token generated successfully, but the Azure App does not have active Drive permissions. "
+                "Please either: (1) In Azure Portal > API permissions, click 'Grant admin consent', OR "
+                "(2) Click the 'Sign in with Microsoft' button above to authorize your personal or work OneDrive in 1 click."
+            )
+
+        return False, f"Could not access OneDrive: {last_error or 'Insufficient permissions'}"
     except Exception as e:
         return False, f"{str(e)}"
 
