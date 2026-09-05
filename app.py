@@ -3005,22 +3005,33 @@ def chat_admin_panel():
                 except Exception:
                     pass
 
-            od_config = {
-                "key": od_key,
-                "client_id": od_client_id,
-                "client_secret": od_key,
-                "tenant_id": od_tenant_id or "common",
-                "folder": od_folder or "rey_chat",
-            }
-            od_json = json.dumps(od_config)
+            # Fetch existing config to preserve tokens if any
+            cur.execute("SELECT setting_value FROM admin_settings WHERE setting_key = 'onedrive_config'")
+            existing_row = cur.fetchone()
+            existing_cfg = {}
+            if existing_row and existing_row.get("setting_value"):
+                try:
+                    existing_cfg = json.loads(existing_row["setting_value"])
+                except Exception:
+                    pass
 
-            cur.execute("SELECT id FROM admin_settings WHERE setting_key = 'onedrive_config'")
-            if not cur.fetchone():
-                cur.execute("INSERT INTO admin_settings (setting_key, setting_value) VALUES ('onedrive_config', %s)", (od_json,))
-            else:
-                cur.execute("UPDATE admin_settings SET setting_value = %s WHERE setting_key = 'onedrive_config'", (od_json,))
+            existing_cfg.update({
+                "key": od_key,
+                "client_secret": od_key,
+                "client_id": od_client_id or existing_cfg.get("client_id", "a2373e8f-a275-4247-b4ee-9750866b72d7"),
+                "tenant_id": od_tenant_id or existing_cfg.get("tenant_id", "common"),
+                "folder": od_folder or existing_cfg.get("folder", "rey_chat"),
+            })
+
+            od_json = json.dumps(existing_cfg)
+
+            cur.execute("""
+                INSERT INTO admin_settings (setting_key, setting_value, updated_at)
+                VALUES ('onedrive_config', %s, NOW())
+                ON DUPLICATE KEY UPDATE setting_value = VALUES(setting_value), updated_at = NOW()
+            """, (od_json,))
             conn.commit()
-            flash("OneDrive configuration and key saved successfully!", "success")
+            flash("OneDrive configuration saved successfully!", "success")
     
     # Calculate storage folder statistics
     upload_count = 0
@@ -3044,7 +3055,7 @@ def chat_admin_panel():
     # Load OneDrive configuration from database / environment
     cur.execute("SELECT setting_value FROM admin_settings WHERE setting_key = 'onedrive_config'")
     od_row = cur.fetchone()
-    if od_row and od_row["setting_value"]:
+    if od_row and od_row.get("setting_value"):
         try:
             onedrive_config = json.loads(od_row["setting_value"])
         except Exception:
@@ -3052,13 +3063,18 @@ def chat_admin_panel():
     else:
         onedrive_config = {
             "key": os.environ.get("ONEDRIVE_KEY") or os.environ.get("ONEDRIVE_CLIENT_SECRET", ""),
-            "client_id": os.environ.get("ONEDRIVE_CLIENT_ID", ""),
+            "client_id": os.environ.get("ONEDRIVE_CLIENT_ID", "a2373e8f-a275-4247-b4ee-9750866b72d7"),
             "client_secret": os.environ.get("ONEDRIVE_CLIENT_SECRET") or os.environ.get("ONEDRIVE_KEY", ""),
             "tenant_id": os.environ.get("ONEDRIVE_TENANT_ID", "common"),
             "folder": os.environ.get("ONEDRIVE_FOLDER", "rey_chat"),
         }
     
-    onedrive_active = bool(onedrive_config.get("key") or onedrive_config.get("client_secret"))
+    onedrive_active = bool(
+        onedrive_config.get("refresh_token") or
+        onedrive_config.get("access_token") or
+        onedrive_config.get("key") or
+        onedrive_config.get("client_secret")
+    )
     
     cur.close()
     conn.close()
@@ -3079,9 +3095,10 @@ def chat_admin_panel():
 @admin_required
 def api_admin_onedrive_test():
     """Test OneDrive credentials and connectivity."""
-    cloud = get_cloud()
-    if cloud is None:
-        return jsonify({"success": False, "message": "OneDrive storage module could not be loaded. Please ensure requests is installed."})
+    try:
+        import onedrive_storage as cloud
+    except Exception as e:
+        return jsonify({"success": False, "message": f"Could not load onedrive_storage module: {str(e)}"})
 
     data = request.get_json(silent=True) or request.form or {}
     key = (data.get("onedrive_key") or data.get("key") or "").strip()
@@ -3110,12 +3127,43 @@ def api_admin_onedrive_test():
     }
 
     if not key:
-        # Test saved configuration
         success, msg = cloud.test_connection()
         return jsonify({"success": success, "message": msg})
 
     success, msg = cloud.test_connection(custom_config=test_cfg)
     return jsonify({"success": success, "message": msg})
+
+@app.route("/api/admin/onedrive/device-code/start", methods=["POST"])
+@admin_required
+def api_admin_onedrive_device_code_start():
+    """Start Microsoft Device Code authorization flow."""
+    try:
+        import onedrive_storage as cloud
+        data = request.get_json(silent=True) or {}
+        client_id = data.get("client_id")
+        tenant_id = data.get("tenant_id")
+        res = cloud.start_device_code(client_id=client_id, tenant_id=tenant_id)
+        return jsonify({"success": True, **res})
+    except Exception as e:
+        return jsonify({"success": False, "message": str(e)}), 400
+
+@app.route("/api/admin/onedrive/device-code/poll", methods=["POST"])
+@admin_required
+def api_admin_onedrive_device_code_poll():
+    """Poll Microsoft Device Code endpoint."""
+    try:
+        import onedrive_storage as cloud
+        data = request.get_json(silent=True) or {}
+        device_code = data.get("device_code")
+        client_id = data.get("client_id")
+        tenant_id = data.get("tenant_id")
+        if not device_code:
+            return jsonify({"success": False, "message": "device_code is required"}), 400
+        res = cloud.poll_device_code(device_code, client_id=client_id, tenant_id=tenant_id)
+        return jsonify(res)
+    except Exception as e:
+        return jsonify({"status": "error", "message": str(e)}), 400
+
 
 @app.route("/chat")
 @login_required

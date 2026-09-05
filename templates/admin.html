@@ -238,20 +238,64 @@
                     <i class="fa-brands fa-microsoft" style="color: #0078d4; font-size: 20px;"></i>
                     <span>Microsoft OneDrive Cloud Storage Config</span>
                 </h3>
-                {% if onedrive_active %}
-                <span class="role-badge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
-                    <i class="fa-solid fa-circle-check"></i> Key Configured & Active
-                </span>
-                {% else %}
-                <span class="role-badge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
-                    <i class="fa-solid fa-circle-exclamation"></i> Key Not Configured
-                </span>
-                {% endif %}
+                <div style="display: flex; align-items: center; gap: 8px;">
+                    {% if onedrive_config.account_name %}
+                    <span class="role-badge" style="background: rgba(59, 130, 246, 0.2); color: #60a5fa; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-user-check"></i> {{ onedrive_config.account_name }}
+                    </span>
+                    {% endif %}
+                    {% if onedrive_active %}
+                    <span class="role-badge" id="onedriveStatusBadge" style="background: rgba(16, 185, 129, 0.2); color: #34d399; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-circle-check"></i> Connected & Active
+                    </span>
+                    {% else %}
+                    <span class="role-badge" id="onedriveStatusBadge" style="background: rgba(245, 158, 11, 0.2); color: #fbbf24; font-size: 12px; display: inline-flex; align-items: center; gap: 6px;">
+                        <i class="fa-solid fa-circle-exclamation"></i> Not Connected
+                    </span>
+                    {% endif %}
+                </div>
             </div>
             
             <p style="color: var(--text-muted); font-size: 14px; margin-bottom: 20px;">
-                Enter your Microsoft OneDrive / Azure AD API Key (Client Secret) to enable cloud storage. Chat files and attachments will be saved to OneDrive and accessible across all devices in real-time.
+                Connect Microsoft OneDrive to store and sync chat attachments, photos, videos, and files in the cloud in real-time across all devices.
             </p>
+
+            <!-- Quick Link / Device Login Box -->
+            <div style="background: linear-gradient(135deg, rgba(0, 120, 212, 0.12), rgba(0, 90, 158, 0.05)); border: 1px solid rgba(0, 120, 212, 0.35); border-radius: 10px; padding: 16px 18px; margin-bottom: 20px;">
+                <div style="display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px;">
+                    <div>
+                        <div style="font-weight: 600; font-size: 14px; color: #60a5fa; display: flex; align-items: center; gap: 8px;">
+                            <i class="fa-solid fa-bolt"></i> 1-Click Connect with Microsoft Account
+                        </div>
+                        <div style="font-size: 12px; color: var(--text-muted); margin-top: 4px;">
+                            Quickly authorize your personal or work OneDrive account without needing any Azure admin permissions.
+                        </div>
+                    </div>
+                    <button type="button" id="startDeviceCodeBtn" onclick="startOneDriveDeviceLogin()" style="background: #0078d4; color: white; border: none; padding: 9px 18px; border-radius: 6px; font-weight: 600; font-size: 13px; cursor: pointer; display: inline-flex; align-items: center; gap: 8px; transition: background 0.2s;">
+                        <i id="deviceCodeIcon" class="fa-brands fa-windows"></i> Sign in with Microsoft
+                    </button>
+                </div>
+
+                <!-- Device Code Modal / Instructions View -->
+                <div id="deviceCodeBox" style="display: none; margin-top: 16px; padding: 14px; background: rgba(0,0,0,0.3); border-radius: 8px; border: 1px dashed rgba(0, 120, 212, 0.5);">
+                    <div style="font-size: 13px; color: white; margin-bottom: 10px;">
+                        <strong>Step 1:</strong> Copy your code: 
+                        <span id="deviceUserCode" style="font-size: 18px; font-family: monospace; font-weight: 700; color: #38bdf8; background: rgba(56, 189, 248, 0.15); padding: 4px 10px; border-radius: 6px; margin: 0 6px; letter-spacing: 2px;"></span>
+                        <button type="button" onclick="copyDeviceCode()" style="background: rgba(255,255,255,0.1); border: 1px solid rgba(255,255,255,0.2); color: white; padding: 4px 10px; border-radius: 4px; font-size: 11px; cursor: pointer;">
+                            <i class="fa-regular fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <div style="font-size: 13px; color: white; margin-bottom: 10px;">
+                        <strong>Step 2:</strong> Open Microsoft Login: 
+                        <a id="deviceLoginLink" href="https://login.microsoft.com/device" target="_blank" style="color: #60a5fa; text-decoration: underline; font-weight: 600; margin-left: 5px;">
+                            https://login.microsoft.com/device <i class="fa-solid fa-arrow-up-right-from-square" style="font-size: 11px;"></i>
+                        </a>
+                    </div>
+                    <div id="devicePollingStatus" style="font-size: 12px; color: #94a3b8; display: flex; align-items: center; gap: 8px;">
+                        <i class="fa-solid fa-spinner fa-spin"></i> Waiting for you to sign in on Microsoft...
+                    </div>
+                </div>
+            </div>
 
             <form method="POST" id="onedriveConfigForm">
                 <input type="hidden" name="action" value="save_onedrive">
@@ -261,15 +305,15 @@
                     <div class="input-group" style="display: flex; flex-direction: column; gap: 6px;">
                         <div style="display: flex; justify-content: space-between; align-items: center;">
                             <label style="font-size: 13px; color: var(--accent); font-weight: 600;">
-                                <i class="fa-solid fa-key" style="margin-right: 5px;"></i> OneDrive Key / Client Secret <span style="color: #f87171;">*</span>
+                                <i class="fa-solid fa-key" style="margin-right: 5px;"></i> OneDrive Key / Client Secret (or Direct Bearer Token)
                             </label>
                             <button type="button" onclick="toggleKeyVisibility()" style="background: none; border: none; color: var(--text-muted); cursor: pointer; font-size: 12px; display: inline-flex; align-items: center; gap: 5px; outline: none;">
                                 <i id="eyeIcon" class="fa-solid fa-eye"></i> <span id="eyeText">Show Key</span>
                             </button>
                         </div>
-                        <input type="password" id="onedriveKeyInput" name="onedrive_key" value="{{ onedrive_config.key or onedrive_config.client_secret or '' }}" placeholder="Paste your OneDrive API Key / Client Secret or Access Token here" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box; font-family: monospace; font-size: 13px;" required>
+                        <input type="password" id="onedriveKeyInput" name="onedrive_key" value="{{ onedrive_config.key or onedrive_config.client_secret or '' }}" placeholder="Paste your OneDrive API Key / Client Secret or Access Token here" style="width: 100%; padding: 12px 14px; border-radius: 8px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.05); color: white; outline: none; box-sizing: border-box; font-family: monospace; font-size: 13px;">
                         <span style="font-size: 11px; color: var(--text-muted);">
-                            Enter your Azure AD App Client Secret Key, direct API Key, or paste your credentials JSON blob.
+                            Enter your Azure AD App Client Secret Key (Value), Direct Access Token, or paste your credentials JSON blob.
                         </span>
                     </div>
 
@@ -277,7 +321,7 @@
                     <div style="background: rgba(255,255,255,0.02); border: 1px solid rgba(255,255,255,0.07); border-radius: 8px; padding: 14px;">
                         <div style="display: flex; justify-content: space-between; align-items: center; cursor: pointer; user-select: none;" onclick="toggleAdvancedOneDrive()">
                             <span style="font-size: 12px; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; display: flex; align-items: center; gap: 8px;">
-                                <i class="fa-solid fa-sliders" style="color: #0078d4;"></i> Additional Azure AD Parameters (Optional)
+                                <i class="fa-solid fa-sliders" style="color: #0078d4;"></i> Azure AD Parameters (Optional)
                             </span>
                             <i id="advancedChevron" class="fa-solid fa-chevron-down" style="color: var(--text-muted); font-size: 12px; transition: transform 0.2s;"></i>
                         </div>
@@ -286,7 +330,7 @@
                             <div style="display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 15px;">
                                 <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
                                     <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Client ID (Application ID)</label>
-                                    <input type="text" id="onedriveClientIdInput" name="onedrive_client_id" value="{{ onedrive_config.client_id or '' }}" placeholder="e.g. 00000000-0000-0000-0000-000000000000" style="width: 100%; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: white; outline: none; box-sizing: border-box; font-size: 12px; font-family: monospace;">
+                                    <input type="text" id="onedriveClientIdInput" name="onedrive_client_id" value="{{ onedrive_config.client_id or 'a2373e8f-a275-4247-b4ee-9750866b72d7' }}" placeholder="e.g. a2373e8f-a275-4247-b4ee-9750866b72d7" style="width: 100%; padding: 9px 12px; border-radius: 6px; border: 1px solid var(--border-color); background: rgba(255,255,255,0.04); color: white; outline: none; box-sizing: border-box; font-size: 12px; font-family: monospace;">
                                 </div>
                                 <div class="input-group" style="display: flex; flex-direction: column; gap: 4px;">
                                     <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">Tenant ID (Directory ID)</label>
@@ -748,6 +792,116 @@
             resultEl.innerHTML = `<i class="fa-solid fa-triangle-exclamation" style="margin-right: 6px;"></i> Error testing connection: ${err.message || 'Network error'}`;
         } finally {
             if (spinIcon) spinIcon.className = 'fa-solid fa-plug';
+        }
+    }
+
+    // Device Code Flow for 1-Click Microsoft Login
+    let devicePollInterval = null;
+    let currentDeviceCode = null;
+
+    async function startOneDriveDeviceLogin() {
+        const btn = document.getElementById('startDeviceCodeBtn');
+        const icon = document.getElementById('deviceCodeIcon');
+        const box = document.getElementById('deviceCodeBox');
+        const userCodeSpan = document.getElementById('deviceUserCode');
+        const pollingStatus = document.getElementById('devicePollingStatus');
+        const clientIdVal = (document.getElementById('onedriveClientIdInput')?.value || '').trim();
+        const tenantIdVal = (document.getElementById('onedriveTenantIdInput')?.value || '').trim();
+
+        if (devicePollInterval) {
+            clearInterval(devicePollInterval);
+            devicePollInterval = null;
+        }
+
+        if (icon) icon.className = 'fa-solid fa-spinner fa-spin';
+        if (btn) btn.disabled = true;
+
+        try {
+            const res = await fetch('/api/admin/onedrive/device-code/start', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    client_id: clientIdVal,
+                    tenant_id: tenantIdVal
+                })
+            });
+            const data = await res.json();
+            
+            if (!data.success) {
+                alert('Could not start Microsoft login: ' + (data.message || 'Unknown error'));
+                return;
+            }
+
+            currentDeviceCode = data.device_code;
+            if (userCodeSpan) userCodeSpan.textContent = data.user_code;
+            if (box) box.style.display = 'block';
+
+            // Start polling every 4 seconds
+            let attempts = 0;
+            const maxAttempts = Math.floor((data.expires_in || 900) / 4);
+
+            devicePollInterval = setInterval(async () => {
+                attempts++;
+                if (attempts > maxAttempts) {
+                    clearInterval(devicePollInterval);
+                    if (pollingStatus) {
+                        pollingStatus.innerHTML = '<span style="color: #f87171;"><i class="fa-solid fa-circle-xmark"></i> Code expired. Please click "Sign in with Microsoft" again.</span>';
+                    }
+                    return;
+                }
+
+                try {
+                    const pollRes = await fetch('/api/admin/onedrive/device-code/poll', {
+                        method: 'POST',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({
+                            device_code: currentDeviceCode,
+                            client_id: clientIdVal,
+                            tenant_id: tenantIdVal
+                        })
+                    });
+                    const pollData = await pollRes.json();
+
+                    if (pollData.status === 'success') {
+                        clearInterval(devicePollInterval);
+                        devicePollInterval = null;
+                        if (pollingStatus) {
+                            pollingStatus.innerHTML = `<span style="color: #34d399; font-weight: 600;"><i class="fa-solid fa-circle-check"></i> ${pollData.message || 'Connected successfully!'}</span>`;
+                        }
+                        const badge = document.getElementById('onedriveStatusBadge');
+                        if (badge) {
+                            badge.style.background = 'rgba(16, 185, 129, 0.2)';
+                            badge.style.color = '#34d399';
+                            badge.innerHTML = '<i class="fa-solid fa-circle-check"></i> Connected & Active';
+                        }
+                        setTimeout(() => {
+                            window.location.reload();
+                        }, 1500);
+                    } else if (pollData.status === 'declined' || pollData.status === 'expired' || pollData.status === 'error') {
+                        clearInterval(devicePollInterval);
+                        devicePollInterval = null;
+                        if (pollingStatus) {
+                            pollingStatus.innerHTML = `<span style="color: #f87171;"><i class="fa-solid fa-circle-xmark"></i> ${pollData.message || 'Login failed.'}</span>`;
+                        }
+                    }
+                } catch (e) {
+                    console.error("Poll error:", e);
+                }
+            }, 4000);
+
+        } catch (err) {
+            alert('Error starting Microsoft login: ' + err.message);
+        } finally {
+            if (icon) icon.className = 'fa-brands fa-windows';
+            if (btn) btn.disabled = false;
+        }
+    }
+
+    function copyDeviceCode() {
+        const userCodeSpan = document.getElementById('deviceUserCode');
+        if (userCodeSpan && userCodeSpan.textContent) {
+            navigator.clipboard.writeText(userCodeSpan.textContent.trim());
+            alert('Copied code ' + userCodeSpan.textContent.trim() + ' to clipboard! Paste it at https://login.microsoft.com/device');
         }
     }
 
