@@ -174,6 +174,7 @@ online_users = {}        # user_id (int) -> set of socket sids
 sid_to_uid = {}          # sid -> user_id (int)
 user_active_room = {}    # sid -> room_id (str)
 user_custom_statuses = {} # user_id (int) -> 'online' | 'away' | 'offline'
+active_group_calls = {}   # group_id (int) -> dict of active group call state
 
 # ─── Database Configuration ──────────────────────────────────────────
 DB_CONFIG = {
@@ -4520,6 +4521,11 @@ def on_disconnect():
             user_custom_statuses.pop(user_id, None)
             username = get_user_name_from_db(user_id)
             emit('user_status_changed', {'user_id': user_id, 'full_name': username, 'status': 'offline'}, broadcast=True)
+    
+    # Clean up from any active group calls if user disconnected
+    if user_id:
+        for gid in list(active_group_calls.keys()):
+            _cleanup_user_from_group_call(gid, user_id)
 
 @socketio.on('change_status')
 def handle_change_status(data):
@@ -5067,6 +5073,265 @@ def handle_end_call(data):
     emit('call-ended', {
         'sender': sender_id
     }, room=to_room)
+
+
+# ═══════════════════════════════════════════════════════════════════════
+# WEBRTC GROUP CALLING (WhatsApp-style Multi-Peer Mesh)
+# ═══════════════════════════════════════════════════════════════════════
+
+def _cleanup_user_from_group_call(group_id, user_id):
+    call_state = active_group_calls.get(group_id)
+    if not call_state:
+        return
+
+    if user_id in call_state.get('participants', {}):
+        call_state['participants'].pop(user_id, None)
+
+        # Notify remaining participants in call
+        for p_id in list(call_state['participants'].keys()):
+            emit('group-call-user-left', {
+                'group_id': group_id,
+                'user_id': user_id,
+                'remaining_count': len(call_state['participants'])
+            }, room=f"user_{p_id}")
+
+        if len(call_state['participants']) == 0:
+            active_group_calls.pop(group_id, None)
+            emit('group-call-status-changed', {
+                'group_id': group_id,
+                'is_active': False,
+                'participant_count': 0
+            }, room=f"group_{group_id}")
+        else:
+            emit('group-call-status-changed', {
+                'group_id': group_id,
+                'is_active': True,
+                'participant_count': len(call_state['participants']),
+                'participants': list(call_state['participants'].values()),
+                'media_type': call_state.get('media_type', 'audio')
+            }, room=f"group_{group_id}")
+
+
+@socketio.on('group-call-start')
+def handle_group_call_start(data):
+    group_id = data.get('group_id')
+    media_type = data.get('media_type', 'audio') # 'audio' or 'video'
+    user_id = session.get('user_id')
+    user_name = session.get('full_name')
+    if not group_id or not user_id:
+        return
+    try:
+        group_id = int(group_id)
+    except (ValueError, TypeError):
+        return
+
+    conn = get_db()
+    if not conn:
+        return
+    cur = conn.cursor(dictionary=True)
+    try:
+        cur.execute("SELECT 1 FROM chat_group_members WHERE group_id = %s AND user_id = %s", (group_id, user_id))
+        if not cur.fetchone():
+            return
+        cur.execute("SELECT name FROM chat_groups WHERE id = %s", (group_id,))
+        grow = cur.fetchone()
+        group_name = grow["name"] if grow else f"Group {group_id}"
+
+        cur.execute("SELECT user_id FROM chat_group_members WHERE group_id = %s", (group_id,))
+        all_members = [r["user_id"] for r in cur.fetchall()]
+    finally:
+        cur.close()
+        conn.close()
+
+    call_state = active_group_calls.get(group_id)
+    if not call_state:
+        call_state = {
+            'group_id': group_id,
+            'group_name': group_name,
+            'media_type': media_type,
+            'initiator_id': user_id,
+            'initiator_name': user_name,
+            'participants': {},
+            'started_at': now_ist().strftime("%Y-%m-%d %H:%M:%S")
+        }
+        active_group_calls[group_id] = call_state
+
+    call_state['participants'][user_id] = {
+        'user_id': user_id,
+        'user_name': user_name,
+        'audio_enabled': True,
+        'video_enabled': (media_type == 'video'),
+        'sid': request.sid
+    }
+
+    emit('group-call-started', {
+        'group_id': group_id,
+        'group_name': group_name,
+        'media_type': media_type,
+        'participants': list(call_state['participants'].values())
+    })
+
+    # Alert other group members of incoming group call
+    for mid in all_members:
+        if mid != user_id:
+            emit('incoming-group-call', {
+                'group_id': group_id,
+                'group_name': group_name,
+                'media_type': media_type,
+                'caller_id': user_id,
+                'caller_name': user_name
+            }, room=f"user_{mid}")
+
+    emit('group-call-status-changed', {
+        'group_id': group_id,
+        'is_active': True,
+        'participant_count': len(call_state['participants']),
+        'participants': list(call_state['participants'].values()),
+        'media_type': media_type
+    }, room=f"group_{group_id}")
+
+
+@socketio.on('group-call-join')
+def handle_group_call_join(data):
+    group_id = data.get('group_id')
+    user_id = session.get('user_id')
+    user_name = session.get('full_name')
+    if not group_id or not user_id:
+        return
+    try:
+        group_id = int(group_id)
+    except (ValueError, TypeError):
+        return
+
+    call_state = active_group_calls.get(group_id)
+    if not call_state:
+        handle_group_call_start(data)
+        return
+
+    # Add joining participant
+    call_state['participants'][user_id] = {
+        'user_id': user_id,
+        'user_name': user_name,
+        'audio_enabled': True,
+        'video_enabled': (call_state.get('media_type') == 'video'),
+        'sid': request.sid
+    }
+
+    emit('group-call-joined-success', {
+        'group_id': group_id,
+        'group_name': call_state['group_name'],
+        'media_type': call_state['media_type'],
+        'participants': list(call_state['participants'].values())
+    })
+
+    # Inform all other participants in call that new user joined
+    for p_id in list(call_state['participants'].keys()):
+        if p_id != user_id:
+            emit('group-call-user-joined', {
+                'group_id': group_id,
+                'user_id': user_id,
+                'user_name': user_name,
+                'media_type': call_state['media_type']
+            }, room=f"user_{p_id}")
+
+    emit('group-call-status-changed', {
+        'group_id': group_id,
+        'is_active': True,
+        'participant_count': len(call_state['participants']),
+        'participants': list(call_state['participants'].values()),
+        'media_type': call_state['media_type']
+    }, room=f"group_{group_id}")
+
+
+@socketio.on('group-call-signal')
+def handle_group_call_signal(data):
+    group_id = data.get('group_id')
+    to_user_id = data.get('to_user_id')
+    from_user_id = session.get('user_id')
+    from_user_name = session.get('full_name')
+    signal_type = data.get('type')
+    signal_data = data.get('data')
+
+    if not group_id or not to_user_id or not from_user_id or not signal_type:
+        return
+
+    emit('group-call-signal', {
+        'group_id': group_id,
+        'from_user_id': from_user_id,
+        'from_user_name': from_user_name,
+        'type': signal_type,
+        'data': signal_data
+    }, room=f"user_{to_user_id}")
+
+
+@socketio.on('group-call-media-state')
+def handle_group_call_media_state(data):
+    group_id = data.get('group_id')
+    user_id = session.get('user_id')
+    audio_enabled = data.get('audio_enabled', True)
+    video_enabled = data.get('video_enabled', True)
+
+    if not group_id or not user_id:
+        return
+    try:
+        group_id = int(group_id)
+    except (ValueError, TypeError):
+        return
+
+    call_state = active_group_calls.get(group_id)
+    if call_state and user_id in call_state.get('participants', {}):
+        call_state['participants'][user_id]['audio_enabled'] = audio_enabled
+        call_state['participants'][user_id]['video_enabled'] = video_enabled
+
+        for p_id in list(call_state['participants'].keys()):
+            if p_id != user_id:
+                emit('group-call-peer-media-state', {
+                    'group_id': group_id,
+                    'user_id': user_id,
+                    'audio_enabled': audio_enabled,
+                    'video_enabled': video_enabled
+                }, room=f"user_{p_id}")
+
+
+@socketio.on('group-call-leave')
+def handle_group_call_leave(data):
+    group_id = data.get('group_id')
+    user_id = session.get('user_id')
+    if not group_id or not user_id:
+        return
+    try:
+        group_id = int(group_id)
+    except (ValueError, TypeError):
+        return
+
+    _cleanup_user_from_group_call(group_id, user_id)
+
+
+@socketio.on('get-group-call-status')
+def handle_get_group_call_status(data):
+    group_id = data.get('group_id')
+    if not group_id:
+        return
+    try:
+        group_id = int(group_id)
+    except (ValueError, TypeError):
+        return
+
+    call_state = active_group_calls.get(group_id)
+    if call_state and len(call_state.get('participants', {})) > 0:
+        emit('group-call-status', {
+            'group_id': group_id,
+            'is_active': True,
+            'participant_count': len(call_state['participants']),
+            'participants': list(call_state['participants'].values()),
+            'media_type': call_state.get('media_type', 'audio')
+        })
+    else:
+        emit('group-call-status', {
+            'group_id': group_id,
+            'is_active': False,
+            'participant_count': 0
+        })
 
 
 # ═══════════════════════════════════════════════════════════════════════

@@ -1755,6 +1755,257 @@
     100% { box-shadow: 0 0 0 0 rgba(99, 102, 241, 0); }
 }
 
+/* WhatsApp-Style Group Call Active Banner */
+#groupCallActiveBanner {
+    display: none;
+    background: linear-gradient(90deg, rgba(37, 211, 102, 0.18), rgba(18, 140, 126, 0.12));
+    border-left: 4px solid #25d366;
+    border-bottom: 1px solid var(--border-color);
+    padding: 10px 18px;
+    font-size: 13.5px;
+    color: white;
+    align-items: center;
+    justify-content: space-between;
+    z-index: 10;
+    backdrop-filter: blur(8px);
+}
+.group-call-pulse-dot {
+    width: 10px;
+    height: 10px;
+    background: #25d366;
+    border-radius: 50%;
+    display: inline-block;
+    animation: groupCallPulse 1.5s infinite;
+}
+@keyframes groupCallPulse {
+    0% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 211, 102, 0.7); }
+    70% { transform: scale(1.1); box-shadow: 0 0 0 10px rgba(37, 211, 102, 0); }
+    100% { transform: scale(0.9); box-shadow: 0 0 0 0 rgba(37, 211, 102, 0); }
+}
+
+/* WhatsApp Group Call Fullscreen Overlay */
+#groupCallOverlay {
+    display: none;
+    position: fixed;
+    inset: 0;
+    background: #0b141a;
+    z-index: 99999;
+    flex-direction: column;
+    justify-content: space-between;
+    align-items: center;
+    box-sizing: border-box;
+    padding: 16px;
+    backdrop-filter: blur(20px);
+    -webkit-backdrop-filter: blur(20px);
+}
+
+.group-call-header {
+    width: 100%;
+    max-width: 1100px;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 8px 16px;
+    color: white;
+    z-index: 20;
+}
+
+.group-call-title-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+}
+.group-call-name {
+    font-size: 18px;
+    font-weight: 600;
+    color: #e9edef;
+}
+.group-call-subtitle {
+    font-size: 13px;
+    color: #8696a0;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.group-call-grid {
+    flex: 1;
+    width: 100%;
+    max-width: 1200px;
+    display: grid;
+    gap: 12px;
+    padding: 12px;
+    box-sizing: border-box;
+    align-items: center;
+    justify-content: center;
+    overflow-y: auto;
+}
+
+/* WhatsApp dynamic layout styles */
+.group-call-grid.count-1 {
+    grid-template-columns: 1fr;
+    max-width: 800px;
+}
+.group-call-grid.count-2 {
+    grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+    max-width: 1000px;
+}
+.group-call-grid.count-3,
+.group-call-grid.count-4 {
+    grid-template-columns: repeat(2, 1fr);
+}
+.group-call-grid.count-5,
+.group-call-grid.count-6 {
+    grid-template-columns: repeat(3, 1fr);
+}
+.group-call-grid.count-7,
+.group-call-grid.count-8,
+.group-call-grid.count-9 {
+    grid-template-columns: repeat(3, 1fr);
+}
+
+.group-participant-card {
+    position: relative;
+    background: #111b21;
+    border-radius: 16px;
+    overflow: hidden;
+    aspect-ratio: 16/10;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    border: 2px solid rgba(255,255,255,0.06);
+    box-shadow: 0 4px 20px rgba(0,0,0,0.4);
+    transition: all 0.3s ease;
+    min-height: 180px;
+}
+.group-participant-card.speaking {
+    border-color: #25d366;
+    box-shadow: 0 0 15px rgba(37, 211, 102, 0.4);
+}
+.group-participant-card video {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    display: block;
+}
+.group-participant-card.self-card video {
+    transform: scaleX(-1);
+}
+.group-participant-avatar-view {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 12px;
+    width: 100%;
+    height: 100%;
+    background: #182229;
+}
+.group-participant-avatar {
+    width: 72px;
+    height: 72px;
+    border-radius: 50%;
+    background: var(--primary-gradient);
+    font-size: 28px;
+    font-weight: 700;
+    color: white;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+.group-participant-info {
+    position: absolute;
+    bottom: 12px;
+    left: 12px;
+    background: rgba(11, 20, 26, 0.75);
+    backdrop-filter: blur(8px);
+    padding: 4px 10px;
+    border-radius: 12px;
+    display: flex;
+    align-items: center;
+    gap: 6px;
+    font-size: 12.5px;
+    color: #e9edef;
+    font-weight: 500;
+    max-width: calc(100% - 24px);
+    z-index: 5;
+}
+.group-participant-mic-status {
+    font-size: 12px;
+}
+.group-participant-mic-status.muted {
+    color: #ef4444;
+}
+.group-participant-mic-status.unmuted {
+    color: #25d366;
+}
+
+/* WhatsApp Floating Bottom Call Controls */
+.group-call-controls {
+    display: flex;
+    align-items: center;
+    gap: 18px;
+    background: rgba(32, 44, 51, 0.85);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    padding: 12px 24px;
+    border-radius: 40px;
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    box-shadow: 0 10px 30px rgba(0,0,0,0.5);
+    margin-bottom: 8px;
+    z-index: 20;
+}
+.group-call-btn {
+    width: 50px;
+    height: 50px;
+    border-radius: 50%;
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #e9edef;
+    font-size: 18px;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    transition: all 0.2s ease;
+}
+.group-call-btn:hover {
+    background: rgba(255, 255, 255, 0.2);
+    transform: scale(1.05);
+}
+.group-call-btn.hangup {
+    width: 56px;
+    height: 56px;
+    background: #ea4335;
+    color: white;
+    font-size: 22px;
+}
+.group-call-btn.hangup:hover {
+    background: #d93025;
+}
+
+/* Incoming Group Call Toast */
+#incomingGroupCallModal {
+    display: none;
+    position: fixed;
+    top: 30px;
+    left: 50%;
+    transform: translateX(-50%);
+    background: rgba(17, 27, 33, 0.95) !important;
+    border: 1px solid rgba(37, 211, 102, 0.4) !important;
+    box-shadow: 0 10px 40px rgba(0,0,0,0.6);
+    padding: 16px 24px;
+    border-radius: 16px;
+    z-index: 100000;
+    align-items: center;
+    gap: 20px;
+    min-width: 320px;
+    max-width: 90%;
+    backdrop-filter: blur(12px);
+    -webkit-backdrop-filter: blur(12px);
+    animation: slideDownModal 0.3s cubic-bezier(0.18, 0.89, 0.32, 1.28);
+}
+
 /* Badge overrides globally using new brand badge gradient */
 .unread-badge, .tab-badge, .mention-badge {
     background: var(--gradient-badge) !important;
@@ -2074,8 +2325,8 @@
                 </div>
             </div>
             <div style="display: flex; align-items: center; gap: 15px; position: relative;">
-                <i class="fa-solid fa-phone call-btn" id="voiceCallBtn" title="Voice Call" onclick="startCall('audio')"></i>
-                <i class="fa-solid fa-video call-btn" id="videoCallBtn" title="Video Call" onclick="startCall('video')"></i>
+                <i class="fa-solid fa-phone call-btn" id="voiceCallBtn" title="Voice Call" onclick="handleCallBtnClick('audio')"></i>
+                <i class="fa-solid fa-video call-btn" id="videoCallBtn" title="Video Call" onclick="handleCallBtnClick('video')"></i>
                 <i class="fa-solid fa-magnifying-glass" id="chatSearchBtn" style="cursor: pointer; color: var(--text-muted); font-size: 16px;" title="Search messages (Ctrl+F)" onclick="toggleChatSearch()"></i>
                 <button id="groupInfoBtn" style="display:none;background:none;border:none;color:var(--text-secondary);cursor:pointer;font-size:18px;padding:8px" onclick="openGroupInfo()" title="Group Info">ℹ️</button>
                 <i class="fa-solid fa-ellipsis-vertical" id="chatMenuBtn" style="cursor: pointer; color: var(--text-muted); font-size: 18px; padding: 8px; display: flex; align-items: center; justify-content: center;" title="Options" onclick="toggleChatMenu(event)"></i>
@@ -2100,6 +2351,16 @@
                     </div>
                 </div>
             </div>
+        </div>
+
+        <div id="groupCallActiveBanner" style="display: none;">
+            <div style="display: flex; align-items: center; gap: 10px;">
+                <span class="group-call-pulse-dot"></span>
+                <span id="groupCallActiveText" style="font-weight: 500;">Group Call in progress</span>
+            </div>
+            <button onclick="joinActiveGroupCall()" style="background: #25d366; color: #0b141a; border: none; padding: 6px 14px; border-radius: 18px; font-weight: bold; cursor: pointer; font-size: 12.5px; display: flex; align-items: center; gap: 6px; box-shadow: 0 2px 8px rgba(37, 211, 102, 0.4);">
+                <i class="fa-solid fa-phone"></i> Join Call
+            </button>
         </div>
 
         <div id="pinnedBanner" style="display: none; background: rgba(255,255,255,0.05); border-left: 4px solid var(--primary); padding: 8px 15px; font-size: 13px; color: white; cursor: pointer; border-bottom: 1px solid var(--border-color);" onclick="scrollToPinned()">
@@ -2384,6 +2645,61 @@
             <i class="fa-solid fa-phone"></i>
         </button>
         <button onclick="rejectIncomingCall()" style="width: 40px; height: 40px; border-radius: 50%; background: #ef4444; border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Decline">
+            <i class="fa-solid fa-phone-slash"></i>
+        </button>
+    </div>
+</div>
+
+<!-- WebRTC WhatsApp-Style Active Group Call Overlay -->
+<div id="groupCallOverlay">
+    <!-- Header -->
+    <div class="group-call-header">
+        <div class="group-call-title-area">
+            <div class="group-call-name" id="groupCallTitle">Group Name</div>
+            <div class="group-call-subtitle">
+                <span id="groupCallTimer">00:00</span>
+                <span>•</span>
+                <span id="groupCallParticipantsCount">1 in call</span>
+            </div>
+        </div>
+        <div style="display: flex; gap: 10px;">
+            <button onclick="toggleGroupCallGridFullscreen()" class="group-call-btn" style="width: 40px; height: 40px; font-size: 15px;" title="Fullscreen">
+                <i class="fa-solid fa-expand" id="groupCallFullscreenIcon"></i>
+            </button>
+        </div>
+    </div>
+
+    <!-- Responsive WhatsApp Multi-Video Grid -->
+    <div class="group-call-grid count-1" id="groupCallGrid">
+        <!-- Participant video cards will be rendered dynamically -->
+    </div>
+
+    <!-- WhatsApp Floating Control Bar -->
+    <div class="group-call-controls">
+        <button id="groupCallToggleMic" onclick="toggleGroupCallMic()" class="group-call-btn" title="Mute Microphone">
+            <i class="fa-solid fa-microphone"></i>
+        </button>
+        <button id="groupCallToggleCam" onclick="toggleGroupCallCam()" class="group-call-btn" title="Turn Camera Off">
+            <i class="fa-solid fa-video"></i>
+        </button>
+        <button onclick="leaveGroupCall()" class="group-call-btn hangup" title="Leave Call">
+            <i class="fa-solid fa-phone-slash"></i>
+        </button>
+    </div>
+</div>
+
+<!-- WebRTC Incoming Group Call Toast -->
+<div id="incomingGroupCallModal">
+    <div class="avatar pulse-avatar" id="incGroupCallAvatar" style="width: 50px; height: 50px; font-size: 20px; background: var(--primary-gradient); display: flex; align-items: center; justify-content: center; font-weight: bold; color: white; border-radius: 50%;">G</div>
+    <div style="flex: 1; text-align: left; min-width: 0;">
+        <div id="incGroupCallGroupName" style="font-weight: 600; color: white; font-size: 15px; text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">Group Name</div>
+        <div id="incGroupCallCallerText" style="font-size: 12px; color: var(--text-muted); margin-top: 2px;">Incoming Group Call...</div>
+    </div>
+    <div style="display: flex; gap: 10px;">
+        <button onclick="acceptIncomingGroupCall()" style="width: 40px; height: 40px; border-radius: 50%; background: #25d366; border: none; color: #0b141a; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center; box-shadow: 0 4px 12px rgba(37,211,102,0.4);" title="Join Call">
+            <i class="fa-solid fa-phone"></i>
+        </button>
+        <button onclick="declineIncomingGroupCall()" style="width: 40px; height: 40px; border-radius: 50%; background: #ef4444; border: none; color: white; font-size: 18px; cursor: pointer; display: flex; align-items: center; justify-content: center;" title="Decline">
             <i class="fa-solid fa-phone-slash"></i>
         </button>
     </div>
@@ -2912,6 +3228,654 @@
         }
     }
     window.addEventListener('load', checkAllPermissions);
+
+
+    // ═══════════════════════════════════════════════════════════════════════
+    // WEBRTC WHATSAPP-STYLE GROUP CALLING CONTROLLER
+    // ═══════════════════════════════════════════════════════════════════════
+    let activeGroupCallId = null;
+    let activeGroupCallMediaType = null;
+    let groupLocalStream = null;
+    let groupPeerConnections = {}; // peerUserId -> RTCPeerConnection
+    let groupIceQueues = {};        // peerUserId -> [candidate]
+    let groupCallParticipants = {}; // peerUserId -> { user_id, user_name, audio_enabled, video_enabled }
+    let groupRemoteAudioEls = {};   // peerUserId -> <audio>
+    let groupCallDurationTimer = null;
+    let groupCallStartTime = null;
+    let incomingGroupCallData = null;
+    let incomingGroupTimeout = null;
+    let isGroupCallAudioMuted = false;
+    let isGroupCallVideoOff = false;
+
+    function handleCallBtnClick(type) {
+        if (!currentRoom) {
+            showToast("Please open a conversation first.", "warning");
+            return;
+        }
+        if (String(currentRoom).startsWith('group_')) {
+            const gId = parseInt(currentRoom.split('_')[1]);
+            startGroupCall(gId, type);
+        } else {
+            startCall(type);
+        }
+    }
+
+    async function startGroupCall(groupId, type) {
+        if (activeGroupCallId || callPartnerId) {
+            showToast("A call is already active.", "warning");
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            if (!window.isSecureContext) {
+                showToast("Calling requires a secure connection (HTTPS or localhost).", "error");
+            } else {
+                showToast("Your browser does not support camera/mic media capture.", "error");
+            }
+            return;
+        }
+
+        activeGroupCallId = groupId;
+        activeGroupCallMediaType = type;
+        isGroupCallAudioMuted = false;
+        isGroupCallVideoOff = (type === 'audio');
+        groupPeerConnections = {};
+        groupIceQueues = {};
+        groupCallParticipants = {};
+        groupRemoteAudioEls = {};
+
+        try {
+            const constraints = {
+                audio: true,
+                video: type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
+            };
+            groupLocalStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            const currentGroupName = document.getElementById('chatName') ? document.getElementById('chatName').textContent : `Group ${groupId}`;
+            document.getElementById('groupCallTitle').textContent = currentGroupName;
+            document.getElementById('groupCallParticipantsCount').textContent = '1 in call';
+            document.getElementById('groupCallOverlay').style.display = 'flex';
+
+            updateGroupCallControlsUI();
+            renderGroupSelfParticipantCard();
+
+            // Emit start call
+            socket.emit('group-call-start', {
+                group_id: groupId,
+                media_type: type
+            });
+
+            startGroupCallTimer();
+            playRingtone();
+            setTimeout(() => stopRingtone(), 3500);
+        } catch (err) {
+            console.error("Error starting group call media:", err);
+            handleUserMediaError(err, type);
+            resetGroupCallState();
+        }
+    }
+
+    function joinActiveGroupCall() {
+        if (!currentRoom || !String(currentRoom).startsWith('group_')) return;
+        const gId = parseInt(currentRoom.split('_')[1]);
+        joinGroupCall(gId, 'video');
+    }
+
+    async function joinGroupCall(groupId, type) {
+        if (activeGroupCallId || callPartnerId) {
+            showToast("A call is already active.", "warning");
+            return;
+        }
+        if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+            showToast("Calling requires camera/microphone access.", "error");
+            return;
+        }
+
+        activeGroupCallId = groupId;
+        activeGroupCallMediaType = type;
+        isGroupCallAudioMuted = false;
+        isGroupCallVideoOff = (type === 'audio');
+        groupPeerConnections = {};
+        groupIceQueues = {};
+        groupCallParticipants = {};
+        groupRemoteAudioEls = {};
+
+        try {
+            const constraints = {
+                audio: true,
+                video: type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
+            };
+            groupLocalStream = await navigator.mediaDevices.getUserMedia(constraints);
+
+            const currentGroupName = document.getElementById('chatName') ? document.getElementById('chatName').textContent : `Group ${groupId}`;
+            document.getElementById('groupCallTitle').textContent = currentGroupName;
+            document.getElementById('groupCallParticipantsCount').textContent = 'Connecting...';
+            document.getElementById('groupCallOverlay').style.display = 'flex';
+
+            updateGroupCallControlsUI();
+            renderGroupSelfParticipantCard();
+
+            socket.emit('group-call-join', {
+                group_id: groupId,
+                media_type: type
+            });
+
+            startGroupCallTimer();
+        } catch (err) {
+            console.error("Error joining group call:", err);
+            handleUserMediaError(err, type);
+            resetGroupCallState();
+        }
+    }
+
+    function acceptIncomingGroupCall() {
+        document.getElementById('incomingGroupCallModal').style.display = 'none';
+        stopRingtone();
+        if (incomingGroupTimeout) {
+            clearTimeout(incomingGroupTimeout);
+            incomingGroupTimeout = null;
+        }
+        if (!incomingGroupCallData) return;
+        const { group_id, media_type } = incomingGroupCallData;
+        incomingGroupCallData = null;
+        joinGroupCall(group_id, media_type);
+    }
+
+    function declineIncomingGroupCall() {
+        document.getElementById('incomingGroupCallModal').style.display = 'none';
+        stopRingtone();
+        if (incomingGroupTimeout) {
+            clearTimeout(incomingGroupTimeout);
+            incomingGroupTimeout = null;
+        }
+        incomingGroupCallData = null;
+    }
+
+    function getOrCreateGroupPeerConnection(peerUserId, peerUserName) {
+        if (groupPeerConnections[peerUserId]) {
+            return groupPeerConnections[peerUserId];
+        }
+
+        const pc = new RTCPeerConnection(iceServers);
+        groupPeerConnections[peerUserId] = pc;
+        groupIceQueues[peerUserId] = [];
+
+        if (groupLocalStream) {
+            groupLocalStream.getTracks().forEach(track => {
+                pc.addTrack(track, groupLocalStream);
+            });
+        }
+
+        pc.onicecandidate = (event) => {
+            if (event.candidate && activeGroupCallId) {
+                socket.emit('group-call-signal', {
+                    group_id: activeGroupCallId,
+                    to_user_id: peerUserId,
+                    type: 'candidate',
+                    data: event.candidate
+                });
+            }
+        };
+
+        pc.ontrack = (event) => {
+            attachGroupRemoteStream(peerUserId, peerUserName, event.streams[0]);
+        };
+
+        pc.onconnectionstatechange = () => {
+            if (!pc) return;
+            if (pc.connectionState === 'disconnected' || pc.connectionState === 'failed') {
+                console.log(`Peer connection ${peerUserId} state: ${pc.connectionState}`);
+            }
+        };
+
+        return pc;
+    }
+
+    async function processGroupQueuedCandidates(peerUserId) {
+        const pc = groupPeerConnections[peerUserId];
+        if (!pc || !pc.remoteDescription) return;
+        const queue = groupIceQueues[peerUserId] || [];
+        while (queue.length > 0) {
+            const cand = queue.shift();
+            try {
+                await pc.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+                console.error("Error adding queued group ICE candidate:", e);
+            }
+        }
+    }
+
+    function renderGroupSelfParticipantCard() {
+        const grid = document.getElementById('groupCallGrid');
+        let selfCard = document.getElementById('group-card-self');
+        if (!selfCard) {
+            selfCard = document.createElement('div');
+            selfCard.id = 'group-card-self';
+            selfCard.className = 'group-participant-card self-card';
+            grid.appendChild(selfCard);
+        }
+
+        const myName = (window.currentUserProfile && window.currentUserProfile.full_name) || "You";
+        const initial = myName.charAt(0).toUpperCase();
+
+        selfCard.innerHTML = `
+            <video id="groupSelfVideo" autoplay playsinline muted style="${activeGroupCallMediaType === 'video' && !isGroupCallVideoOff ? 'display:block;' : 'display:none;'}"></video>
+            <div id="groupSelfAvatarView" class="group-participant-avatar-view" style="${activeGroupCallMediaType === 'video' && !isGroupCallVideoOff ? 'display:none;' : 'display:flex;'}">
+                <div class="group-participant-avatar">${initial}</div>
+            </div>
+            <div class="group-participant-info">
+                <i id="groupSelfMicIcon" class="fa-solid fa-microphone group-participant-mic-status unmuted"></i>
+                <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${myName} (You)</span>
+            </div>
+        `;
+
+        const selfVideoEl = document.getElementById('groupSelfVideo');
+        if (selfVideoEl && groupLocalStream && activeGroupCallMediaType === 'video') {
+            selfVideoEl.srcObject = groupLocalStream;
+        }
+
+        updateGroupCallGridLayout();
+    }
+
+    function renderGroupParticipantCard(peerUserId, peerUserName) {
+        const grid = document.getElementById('groupCallGrid');
+        let card = document.getElementById(`group-card-${peerUserId}`);
+        if (!card) {
+            card = document.createElement('div');
+            card.id = `group-card-${peerUserId}`;
+            card.className = 'group-participant-card';
+            grid.appendChild(card);
+
+            const name = peerUserName || `User ${peerUserId}`;
+            const initial = name.charAt(0).toUpperCase();
+
+            card.innerHTML = `
+                <video id="groupVideo-${peerUserId}" autoplay playsinline style="display:none;"></video>
+                <div id="groupAvatarView-${peerUserId}" class="group-participant-avatar-view" style="display:flex;">
+                    <div class="group-participant-avatar">${initial}</div>
+                </div>
+                <div class="group-participant-info">
+                    <i id="groupMicIcon-${peerUserId}" class="fa-solid fa-microphone group-participant-mic-status unmuted"></i>
+                    <span style="text-overflow: ellipsis; overflow: hidden; white-space: nowrap;">${name}</span>
+                </div>
+            `;
+        }
+
+        updateGroupCallGridLayout();
+        return card;
+    }
+
+    function attachGroupRemoteStream(peerUserId, peerUserName, stream) {
+        renderGroupParticipantCard(peerUserId, peerUserName);
+
+        const videoEl = document.getElementById(`groupVideo-${peerUserId}`);
+        const avatarView = document.getElementById(`groupAvatarView-${peerUserId}`);
+
+        if (videoEl && stream) {
+            videoEl.srcObject = stream;
+            videoEl.play().catch(e => console.log('Remote video autoplay:', e));
+
+            const hasVideoTrack = stream.getVideoTracks().length > 0 && stream.getVideoTracks()[0].enabled;
+            if (hasVideoTrack) {
+                videoEl.style.display = 'block';
+                if (avatarView) avatarView.style.display = 'none';
+            } else {
+                videoEl.style.display = 'none';
+                if (avatarView) avatarView.style.display = 'flex';
+            }
+        }
+
+        // Create remote audio receiver element
+        if (!groupRemoteAudioEls[peerUserId]) {
+            const audioEl = document.createElement('audio');
+            audioEl.autoplay = true;
+            document.body.appendChild(audioEl);
+            groupRemoteAudioEls[peerUserId] = audioEl;
+        }
+        groupRemoteAudioEls[peerUserId].srcObject = stream;
+        groupRemoteAudioEls[peerUserId].play().catch(e => console.log('Remote audio autoplay:', e));
+
+        updateGroupCallGridLayout();
+    }
+
+    function removeGroupParticipantCard(peerUserId) {
+        const card = document.getElementById(`group-card-${peerUserId}`);
+        if (card) card.remove();
+
+        if (groupRemoteAudioEls[peerUserId]) {
+            try { groupRemoteAudioEls[peerUserId].remove(); } catch(e){}
+            delete groupRemoteAudioEls[peerUserId];
+        }
+
+        if (groupPeerConnections[peerUserId]) {
+            try { groupPeerConnections[peerUserId].close(); } catch(e){}
+            delete groupPeerConnections[peerUserId];
+        }
+
+        delete groupIceQueues[peerUserId];
+        delete groupCallParticipants[peerUserId];
+
+        updateGroupCallGridLayout();
+    }
+
+    function updateGroupCallGridLayout() {
+        const grid = document.getElementById('groupCallGrid');
+        if (!grid) return;
+
+        const count = grid.children.length;
+        grid.className = `group-call-grid count-${Math.min(Math.max(count, 1), 9)}`;
+
+        const countLabel = document.getElementById('groupCallParticipantsCount');
+        if (countLabel) {
+            countLabel.textContent = `${count} ${count === 1 ? 'participant' : 'in call'}`;
+        }
+    }
+
+    function updateGroupCallControlsUI() {
+        const micBtn = document.getElementById('groupCallToggleMic');
+        if (micBtn) {
+            micBtn.style.background = isGroupCallAudioMuted ? '#ef4444' : 'rgba(255,255,255,0.1)';
+            micBtn.innerHTML = isGroupCallAudioMuted ? '<i class="fa-solid fa-microphone-slash"></i>' : '<i class="fa-solid fa-microphone"></i>';
+            micBtn.title = isGroupCallAudioMuted ? 'Unmute Microphone' : 'Mute Microphone';
+        }
+
+        const camBtn = document.getElementById('groupCallToggleCam');
+        if (camBtn) {
+            if (activeGroupCallMediaType === 'video') {
+                camBtn.style.display = 'flex';
+                camBtn.style.background = isGroupCallVideoOff ? '#ef4444' : 'rgba(255,255,255,0.1)';
+                camBtn.innerHTML = isGroupCallVideoOff ? '<i class="fa-solid fa-video-slash"></i>' : '<i class="fa-solid fa-video"></i>';
+                camBtn.title = isGroupCallVideoOff ? 'Turn Camera On' : 'Turn Camera Off';
+            } else {
+                camBtn.style.display = 'none';
+            }
+        }
+    }
+
+    function toggleGroupCallMic() {
+        if (!groupLocalStream) return;
+        const audioTrack = groupLocalStream.getAudioTracks()[0];
+        if (audioTrack) {
+            audioTrack.enabled = !audioTrack.enabled;
+            isGroupCallAudioMuted = !audioTrack.enabled;
+            updateGroupCallControlsUI();
+
+            const selfMicIcon = document.getElementById('groupSelfMicIcon');
+            if (selfMicIcon) {
+                selfMicIcon.className = `fa-solid ${isGroupCallAudioMuted ? 'fa-microphone-slash group-participant-mic-status muted' : 'fa-microphone group-participant-mic-status unmuted'}`;
+            }
+
+            if (activeGroupCallId) {
+                socket.emit('group-call-media-state', {
+                    group_id: activeGroupCallId,
+                    audio_enabled: !isGroupCallAudioMuted,
+                    video_enabled: !isGroupCallVideoOff
+                });
+            }
+        }
+    }
+
+    function toggleGroupCallCam() {
+        if (!groupLocalStream || activeGroupCallMediaType !== 'video') return;
+        const videoTrack = groupLocalStream.getVideoTracks()[0];
+        if (videoTrack) {
+            videoTrack.enabled = !videoTrack.enabled;
+            isGroupCallVideoOff = !videoTrack.enabled;
+            updateGroupCallControlsUI();
+
+            const selfVideoEl = document.getElementById('groupSelfVideo');
+            const selfAvatarView = document.getElementById('groupSelfAvatarView');
+            if (selfVideoEl && selfAvatarView) {
+                selfVideoEl.style.display = isGroupCallVideoOff ? 'none' : 'block';
+                selfAvatarView.style.display = isGroupCallVideoOff ? 'flex' : 'none';
+            }
+
+            if (activeGroupCallId) {
+                socket.emit('group-call-media-state', {
+                    group_id: activeGroupCallId,
+                    audio_enabled: !isGroupCallAudioMuted,
+                    video_enabled: !isGroupCallVideoOff
+                });
+            }
+        }
+    }
+
+    function toggleGroupCallGridFullscreen() {
+        const overlay = document.getElementById('groupCallOverlay');
+        const icon = document.getElementById('groupCallFullscreenIcon');
+        if (!document.fullscreenElement) {
+            overlay.requestFullscreen().then(() => {
+                if (icon) icon.className = 'fa-solid fa-compress';
+            }).catch(e => console.log(e));
+        } else {
+            document.exitFullscreen().then(() => {
+                if (icon) icon.className = 'fa-solid fa-expand';
+            }).catch(e => console.log(e));
+        }
+    }
+
+    function startGroupCallTimer() {
+        if (groupCallDurationTimer) return;
+        groupCallStartTime = Date.now();
+        const timerEl = document.getElementById('groupCallTimer');
+        timerEl.textContent = '00:00';
+
+        groupCallDurationTimer = setInterval(() => {
+            const elapsed = Math.floor((Date.now() - groupCallStartTime) / 1000);
+            const mins = String(Math.floor(elapsed / 60)).padStart(2, '0');
+            const secs = String(elapsed % 60).padStart(2, '0');
+            timerEl.textContent = `${mins}:${secs}`;
+        }, 1000);
+    }
+
+    function leaveGroupCall() {
+        if (activeGroupCallId) {
+            socket.emit('group-call-leave', { group_id: activeGroupCallId });
+        }
+        showToast("Left group call", "info");
+        resetGroupCallState();
+    }
+
+    function resetGroupCallState() {
+        stopRingtone();
+
+        if (groupCallDurationTimer) {
+            clearInterval(groupCallDurationTimer);
+            groupCallDurationTimer = null;
+        }
+
+        if (groupLocalStream) {
+            groupLocalStream.getTracks().forEach(track => track.stop());
+            groupLocalStream = null;
+        }
+
+        Object.keys(groupPeerConnections).forEach(pId => {
+            try { groupPeerConnections[pId].close(); } catch(e){}
+        });
+        groupPeerConnections = {};
+        groupIceQueues = {};
+        groupCallParticipants = {};
+
+        Object.keys(groupRemoteAudioEls).forEach(pId => {
+            try { groupRemoteAudioEls[pId].remove(); } catch(e){}
+        });
+        groupRemoteAudioEls = {};
+
+        const grid = document.getElementById('groupCallGrid');
+        if (grid) grid.innerHTML = '';
+
+        document.getElementById('groupCallOverlay').style.display = 'none';
+        document.getElementById('incomingGroupCallModal').style.display = 'none';
+
+        if (document.fullscreenElement) {
+            try { document.exitFullscreen(); } catch(e){}
+        }
+
+        activeGroupCallId = null;
+        activeGroupCallMediaType = null;
+        isGroupCallAudioMuted = false;
+        isGroupCallVideoOff = false;
+    }
+
+    // ─── Socket Event Bindings for Group Calling ───────────────────────
+
+    socket.on('incoming-group-call', function(data) {
+        if (activeGroupCallId || callPartnerId) return;
+
+        incomingGroupCallData = data;
+        document.getElementById('incGroupCallGroupName').textContent = data.group_name || `Group ${data.group_id}`;
+        document.getElementById('incGroupCallAvatar').textContent = data.group_name ? data.group_name.charAt(0).toUpperCase() : 'G';
+        document.getElementById('incGroupCallCallerText').textContent = `${data.caller_name || 'A member'} started a ${data.media_type === 'video' ? 'video' : 'voice'} call...`;
+        document.getElementById('incomingGroupCallModal').style.display = 'flex';
+
+        playRingtone();
+
+        if (incomingGroupTimeout) clearTimeout(incomingGroupTimeout);
+        incomingGroupTimeout = setTimeout(() => {
+            if (incomingGroupCallData) {
+                declineIncomingGroupCall();
+            }
+        }, 45000);
+    });
+
+    socket.on('group-call-started', function(data) {
+        // Initiator received call confirmation
+        const participants = data.participants || [];
+        participants.forEach(p => {
+            if (p.user_id !== UID) {
+                renderGroupParticipantCard(p.user_id, p.user_name);
+            }
+        });
+        updateGroupCallGridLayout();
+    });
+
+    socket.on('group-call-joined-success', async function(data) {
+        // Joining user received confirmation & participant list
+        // Joining user creates offers to all existing peers in call
+        const participants = data.participants || [];
+        for (const p of participants) {
+            if (p.user_id !== UID) {
+                renderGroupParticipantCard(p.user_id, p.user_name);
+                const pc = getOrCreateGroupPeerConnection(p.user_id, p.user_name, true);
+                try {
+                    const offer = await pc.createOffer();
+                    await pc.setLocalDescription(offer);
+                    socket.emit('group-call-signal', {
+                        group_id: data.group_id,
+                        to_user_id: p.user_id,
+                        type: 'offer',
+                        data: offer
+                    });
+                } catch (e) {
+                    console.error("Error creating group call offer to peer:", p.user_id, e);
+                }
+            }
+        }
+        updateGroupCallGridLayout();
+    });
+
+    socket.on('group-call-user-joined', function(data) {
+        if (data.user_id === UID) return;
+        renderGroupParticipantCard(data.user_id, data.user_name);
+        showToast(`${data.user_name} joined the call`, 'info');
+        updateGroupCallGridLayout();
+    });
+
+    socket.on('group-call-signal', async function(data) {
+        const fromUserId = data.from_user_id;
+        const fromUserName = data.from_user_name;
+        const signalType = data.type;
+        const signalData = data.data;
+
+        if (!activeGroupCallId || fromUserId === UID) return;
+
+        const pc = getOrCreateGroupPeerConnection(fromUserId, fromUserName);
+
+        if (signalType === 'offer') {
+            try {
+                await pc.setRemoteDescription(new RTCSessionDescription(signalData));
+                await processGroupQueuedCandidates(fromUserId);
+                const answer = await pc.createAnswer();
+                await pc.setLocalDescription(answer);
+
+                socket.emit('group-call-signal', {
+                    group_id: activeGroupCallId,
+                    to_user_id: fromUserId,
+                    type: 'answer',
+                    data: answer
+                });
+            } catch (err) {
+                console.error("Error handling group offer signal:", err);
+            }
+        } else if (signalType === 'answer') {
+            try {
+                await pc.setRemoteDescription(new RTCSessionDescription(signalData));
+                await processGroupQueuedCandidates(fromUserId);
+            } catch (err) {
+                console.error("Error handling group answer signal:", err);
+            }
+        } else if (signalType === 'candidate') {
+            if (pc.remoteDescription && pc.remoteDescription.type) {
+                try {
+                    await pc.addIceCandidate(new RTCIceCandidate(signalData));
+                } catch (err) {
+                    console.error("Error adding group candidate:", err);
+                }
+            } else {
+                if (!groupIceQueues[fromUserId]) groupIceQueues[fromUserId] = [];
+                groupIceQueues[fromUserId].push(signalData);
+            }
+        }
+    });
+
+    socket.on('group-call-peer-media-state', function(data) {
+        const peerUserId = data.user_id;
+        const micIcon = document.getElementById(`groupMicIcon-${peerUserId}`);
+        if (micIcon) {
+            micIcon.className = `fa-solid ${data.audio_enabled ? 'fa-microphone group-participant-mic-status unmuted' : 'fa-microphone-slash group-participant-mic-status muted'}`;
+        }
+
+        const videoEl = document.getElementById(`groupVideo-${peerUserId}`);
+        const avatarView = document.getElementById(`groupAvatarView-${peerUserId}`);
+        if (videoEl && avatarView) {
+            videoEl.style.display = data.video_enabled ? 'block' : 'none';
+            avatarView.style.display = data.video_enabled ? 'none' : 'flex';
+        }
+    });
+
+    socket.on('group-call-user-left', function(data) {
+        removeGroupParticipantCard(data.user_id);
+    });
+
+    socket.on('group-call-status-changed', function(data) {
+        // If the updated group matches our currently open chat room, update active banner
+        if (currentRoom === `group_${data.group_id}`) {
+            const banner = document.getElementById('groupCallActiveBanner');
+            const textEl = document.getElementById('groupCallActiveText');
+            if (data.is_active && data.participant_count > 0) {
+                if (textEl) {
+                    textEl.textContent = `Group Call in progress (${data.participant_count} ${data.participant_count === 1 ? 'participant' : 'participants'})`;
+                }
+                if (banner && !activeGroupCallId) banner.style.display = 'flex';
+            } else {
+                if (banner) banner.style.display = 'none';
+            }
+        }
+    });
+
+    socket.on('group-call-status', function(data) {
+        if (currentRoom === `group_${data.group_id}`) {
+            const banner = document.getElementById('groupCallActiveBanner');
+            const textEl = document.getElementById('groupCallActiveText');
+            if (data.is_active && data.participant_count > 0) {
+                if (textEl) {
+                    textEl.textContent = `Group Call in progress (${data.participant_count} ${data.participant_count === 1 ? 'participant' : 'participants'})`;
+                }
+                if (banner && !activeGroupCallId) banner.style.display = 'flex';
+            } else {
+                if (banner) banner.style.display = 'none';
+            }
+        }
+    });
 
 
     
@@ -3732,14 +4696,17 @@ socket.on('user_status_changed', function(data) {
         // Call buttons and Group Info visibility
         if (String(currentRoom).startsWith('group_')) {
             document.getElementById('groupInfoBtn').style.display = 'block';
-            document.getElementById('voiceCallBtn').style.display = 'none';
-            document.getElementById('videoCallBtn').style.display = 'none';
+            document.getElementById('voiceCallBtn').style.display = 'block';
+            document.getElementById('videoCallBtn').style.display = 'block';
+            const gId = parseInt(currentRoom.split('_')[1]);
+            socket.emit('get-group-call-status', { group_id: gId });
         } else {
             document.getElementById('groupInfoBtn').style.display = 'none';
             closeGroupInfo();
             document.getElementById('voiceCallBtn').style.display = 'block';
             document.getElementById('videoCallBtn').style.display = 'block';
             document.getElementById('groupNoteBanner').style.display = 'none';
+            document.getElementById('groupCallActiveBanner').style.display = 'none';
         }
         closeMsgInfo();
         
