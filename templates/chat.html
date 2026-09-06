@@ -298,11 +298,20 @@
     
     .emoji-picker-container {
         position: absolute;
-        bottom: 80px;
-        right: 20px;
+        bottom: 75px;
+        left: 20px;
         display: none;
         z-index: 1000;
         animation: scaleIn 0.2s;
+        max-width: calc(100vw - 40px);
+        box-shadow: 0 8px 30px rgba(0,0,0,0.5);
+        border-radius: 12px;
+        overflow: hidden;
+    }
+    emoji-picker {
+        max-width: 100%;
+        --num-columns: 8;
+        --category-emoji-size: 1.125rem;
     }
     .icon-btn.recording {
         color: #ff4444;
@@ -461,13 +470,13 @@
         z-index: 10000;
         background: var(--panel-bg, #202c33);
         border: 1px solid var(--border-color);
-        border-radius: 12px;
+        border-radius: 14px;
         box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
-        padding: 6px 0;
-        width: 270px;
+        padding: 8px 0 6px 0;
+        width: 280px;
         backdrop-filter: var(--glass-blur);
         animation: scaleUp 0.15s cubic-bezier(0.2, 0.8, 0.2, 1);
-        overflow: visible;
+        box-sizing: border-box;
     }
     @keyframes scaleUp {
         from { transform: scale(0.9) translateY(-5px); opacity: 0; }
@@ -475,29 +484,29 @@
     }
     .context-menu-reactions-row {
         display: flex;
-        justify-content: space-around;
+        justify-content: space-between;
         align-items: center;
-        padding: 8px 8px;
-        border-bottom: 1px solid var(--border-color);
-        background: rgba(255, 255, 255, 0.04);
-        border-top-left-radius: 11px;
-        border-top-right-radius: 11px;
-        gap: 2px;
+        padding: 6px 10px;
+        margin: 0 10px 8px 10px;
+        border: 1px solid var(--border-color);
+        border-radius: 20px;
+        background: rgba(255, 255, 255, 0.05);
+        box-sizing: border-box;
     }
     .context-menu-reactions-row span {
-        font-size: 20px;
+        font-size: 18px;
         line-height: 1;
         cursor: pointer;
-        padding: 4px 6px;
-        border-radius: 8px;
+        padding: 3px 4px;
+        border-radius: 50%;
         display: inline-flex;
         align-items: center;
         justify-content: center;
         transition: transform 0.15s cubic-bezier(0.2, 0.8, 0.2, 1), background 0.15s ease;
     }
     .context-menu-reactions-row span:hover {
-        transform: scale(1.3);
-        background: rgba(255, 255, 255, 0.12);
+        transform: scale(1.18);
+        background: rgba(255, 255, 255, 0.15);
     }
     .context-menu-item {
         padding: 10px 16px;
@@ -731,20 +740,21 @@
 .reaction-picker {
     display: none; position: fixed;
     background: var(--panel-bg, #202c33); border: 1px solid var(--border-color, rgba(255,255,255,0.15));
-    border-radius: 30px; padding: 6px 12px; gap: 6px;
+    border-radius: 30px; padding: 6px 14px; gap: 4px;
     backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
     z-index: 10001; box-shadow: 0 6px 25px rgba(0,0,0,0.45);
     flex-direction: row; align-items: center; justify-content: center;
-    white-space: nowrap;
+    white-space: nowrap; box-sizing: border-box;
 }
 .reaction-picker.show { display: flex; }
 .reaction-picker button {
-    background: none; border: none; font-size: 22px; cursor: pointer;
+    background: none; border: none; font-size: 20px; cursor: pointer;
     padding: 4px 6px; border-radius: 50%; transition: transform 0.15s ease, background 0.15s ease;
     line-height: 1; display: inline-flex; align-items: center; justify-content: center;
+    box-sizing: border-box;
 }
 .reaction-picker button:hover {
-    transform: scale(1.3);
+    transform: scale(1.2);
     background: rgba(255,255,255,.12);
 }
 
@@ -1713,6 +1723,7 @@
     border: 2px solid rgba(255,255,255,0.8);
     box-shadow: 0 8px 16px rgba(0,0,0,0.3);
     z-index: 10;
+    transform: scaleX(-1);
 }
 #incomingCallModal {
     display: none;
@@ -2390,45 +2401,71 @@
     let callMediaType = null;
     let callDurationTimer = null;
     let callStartTime = null;
+    let callTimeoutTimer = null;
+    let iceCandidatesQueue = [];
 
     const iceServers = {
         iceServers: [
             { urls: 'stun:stun.l.google.com:19302' },
-            { urls: 'stun:stun1.l.google.com:19302' }
-        ]
+            { urls: 'stun:stun1.l.google.com:19302' },
+            { urls: 'stun:stun2.l.google.com:19302' },
+            { urls: 'stun:stun.services.mozilla.com' },
+            { urls: 'stun:global.stun.twilio.com:3478' }
+        ],
+        iceCandidatePoolSize: 10
     };
 
     let audioCtx = null;
-    let ringtoneOsc = null;
+    let ringtoneOsc1 = null;
+    let ringtoneOsc2 = null;
     let ringtoneInterval = null;
 
     function playRingtone() {
         try {
-            if (!audioCtx) audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            if (!audioCtx) {
+                audioCtx = new (window.AudioContext || window.webkitAudioContext)();
+            }
+            if (audioCtx.state === 'suspended') {
+                audioCtx.resume();
+            }
             stopRingtone();
             
             let isPlaying = false;
             ringtoneInterval = setInterval(() => {
-                if (isPlaying) return;
+                if (isPlaying || !audioCtx) return;
                 isPlaying = true;
                 
-                let osc = audioCtx.createOscillator();
-                let gain = audioCtx.createGain();
-                osc.connect(gain);
-                gain.connect(audioCtx.destination);
+                try {
+                    let now = audioCtx.currentTime;
+                    let osc1 = audioCtx.createOscillator();
+                    let osc2 = audioCtx.createOscillator();
+                    let gain = audioCtx.createGain();
+                    
+                    osc1.type = 'sine';
+                    osc1.frequency.setValueAtTime(440, now);
+                    osc2.type = 'sine';
+                    osc2.frequency.setValueAtTime(480, now);
+                    
+                    gain.gain.setValueAtTime(0.2, now);
+                    gain.gain.exponentialRampToValueAtTime(0.01, now + 1.5);
+                    
+                    osc1.connect(gain);
+                    osc2.connect(gain);
+                    gain.connect(audioCtx.destination);
+                    
+                    osc1.start(now);
+                    osc2.start(now);
+                    osc1.stop(now + 1.5);
+                    osc2.stop(now + 1.5);
+                    
+                    ringtoneOsc1 = osc1;
+                    ringtoneOsc2 = osc2;
+                } catch(e){}
                 
-                osc.type = 'sine';
-                osc.frequency.setValueAtTime(440, audioCtx.currentTime);
-                gain.gain.setValueAtTime(0.5, audioCtx.currentTime);
-                
-                osc.start();
-                osc.stop(audioCtx.currentTime + 1.2);
-                
-                ringtoneOsc = osc;
-                setTimeout(() => { isPlaying = false; }, 2000);
-            }, 2000);
+                setTimeout(() => { isPlaying = false; }, 2500);
+            }, 2500);
         } catch (e) {
-            console.error("AudioContext not supported or blocked", e);
+            console.error("AudioContext ringtone error:", e);
         }
     }
 
@@ -2437,9 +2474,25 @@
             clearInterval(ringtoneInterval);
             ringtoneInterval = null;
         }
-        if (ringtoneOsc) {
-            try { ringtoneOsc.stop(); } catch(e){}
-            ringtoneOsc = null;
+        if (ringtoneOsc1) {
+            try { ringtoneOsc1.stop(); } catch(e){}
+            ringtoneOsc1 = null;
+        }
+        if (ringtoneOsc2) {
+            try { ringtoneOsc2.stop(); } catch(e){}
+            ringtoneOsc2 = null;
+        }
+    }
+
+    async function processQueuedIceCandidates() {
+        if (!rtcPeerConnection || !rtcPeerConnection.remoteDescription) return;
+        while (iceCandidatesQueue.length > 0) {
+            const cand = iceCandidatesQueue.shift();
+            try {
+                await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(cand));
+            } catch (e) {
+                console.error("Error adding queued ICE candidate:", e);
+            }
         }
     }
 
@@ -2461,16 +2514,21 @@
 
     async function startCall(type) {
         if (callPartnerId) return;
+        if (!currentPartnerId) {
+            showToast("Please open a conversation first.", "warning");
+            return;
+        }
         
         callMediaType = type;
         callPartnerId = currentPartnerId;
         isCaller = true;
+        iceCandidatesQueue = [];
         
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             if (!window.isSecureContext) {
-                showToast("Calling requires a secure connection (HTTPS). Please load this site using HTTPS.", "error");
+                showToast("Calling requires a secure connection (HTTPS or localhost).", "error");
             } else {
-                showToast("Your browser does not support media capture or it is disabled.", "error");
+                showToast("Your browser does not support camera/mic media capture.", "error");
             }
             resetCallState();
             return;
@@ -2479,23 +2537,32 @@
         try {
             const constraints = {
                 audio: true,
-                video: type === 'video'
+                video: type === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
             };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
             
             document.getElementById('callUserName').textContent = document.getElementById('chatName').textContent;
             document.getElementById('callAvatar').textContent = document.getElementById('chatAvatar').textContent;
+            document.getElementById('callAvatar').style.display = 'flex';
             document.getElementById('callStatusText').textContent = 'Calling...';
             document.getElementById('callTimer').style.display = 'none';
             document.getElementById('callOverlay').style.display = 'flex';
             
-            document.getElementById('callToggleMic').style.background = 'rgba(255,255,255,0.1)';
-            document.getElementById('callToggleCam').style.background = type === 'video' ? 'rgba(255,255,255,0.1)' : '#ef4444';
-            
+            const micBtn = document.getElementById('callToggleMic');
+            micBtn.style.background = 'rgba(255,255,255,0.1)';
+            micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            micBtn.title = 'Mute Microphone';
+
+            const camBtn = document.getElementById('callToggleCam');
             if (type === 'video') {
+                camBtn.style.display = 'flex';
+                camBtn.style.background = 'rgba(255,255,255,0.1)';
+                camBtn.innerHTML = '<i class="fa-solid fa-video"></i>';
+                camBtn.title = 'Toggle Camera';
                 document.getElementById('callVideoContainer').style.display = 'block';
                 document.getElementById('localVideo').srcObject = localStream;
             } else {
+                camBtn.style.display = 'none';
                 document.getElementById('callVideoContainer').style.display = 'none';
             }
             
@@ -2511,6 +2578,16 @@
             });
             
             playRingtone();
+
+            // Set 45-second call timeout if unanswered
+            if (callTimeoutTimer) clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = setTimeout(() => {
+                if (callPartnerId && isCaller && (!rtcPeerConnection || rtcPeerConnection.connectionState !== 'connected')) {
+                    showToast("No answer from recipient.", "info");
+                    hangUpCall();
+                }
+            }, 45000);
+
         } catch (err) {
             console.error('Error starting media capture:', err);
             handleUserMediaError(err, type);
@@ -2523,6 +2600,11 @@
         document.getElementById('incomingCallModal').style.display = 'none';
         stopRingtone();
         
+        if (callTimeoutTimer) {
+            clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = null;
+        }
+
         const offer = window.incomingCallOffer;
         window.incomingCallOffer = null;
         
@@ -2533,9 +2615,9 @@
         
         if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
             if (!window.isSecureContext) {
-                showToast("Calling requires a secure connection (HTTPS). Please load this site using HTTPS.", "error");
+                showToast("Calling requires a secure connection (HTTPS or localhost).", "error");
             } else {
-                showToast("Your browser does not support media capture or it is disabled.", "error");
+                showToast("Your browser does not support media capture.", "error");
             }
             socket.emit('reject-call', { to: `user_${callPartnerId}` });
             resetCallState();
@@ -2545,29 +2627,40 @@
         try {
             const constraints = {
                 audio: true,
-                video: callMediaType === 'video'
+                video: callMediaType === 'video' ? { width: { ideal: 1280 }, height: { ideal: 720 } } : false
             };
             localStream = await navigator.mediaDevices.getUserMedia(constraints);
             
             document.getElementById('callUserName').textContent = document.getElementById('incCallName').textContent;
             document.getElementById('callAvatar').textContent = document.getElementById('incCallAvatar').textContent;
+            document.getElementById('callAvatar').style.display = 'flex';
             document.getElementById('callStatusText').textContent = 'Connecting...';
             document.getElementById('callTimer').style.display = 'none';
             document.getElementById('callOverlay').style.display = 'flex';
             
-            document.getElementById('callToggleMic').style.background = 'rgba(255,255,255,0.1)';
-            document.getElementById('callToggleCam').style.background = callMediaType === 'video' ? 'rgba(255,255,255,0.1)' : '#ef4444';
-            
+            const micBtn = document.getElementById('callToggleMic');
+            micBtn.style.background = 'rgba(255,255,255,0.1)';
+            micBtn.innerHTML = '<i class="fa-solid fa-microphone"></i>';
+            micBtn.title = 'Mute Microphone';
+
+            const camBtn = document.getElementById('callToggleCam');
             if (callMediaType === 'video') {
+                camBtn.style.display = 'flex';
+                camBtn.style.background = 'rgba(255,255,255,0.1)';
+                camBtn.innerHTML = '<i class="fa-solid fa-video"></i>';
+                camBtn.title = 'Toggle Camera';
                 document.getElementById('callVideoContainer').style.display = 'block';
                 document.getElementById('localVideo').srcObject = localStream;
             } else {
+                camBtn.style.display = 'none';
                 document.getElementById('callVideoContainer').style.display = 'none';
             }
             
             setupPeerConnection(callMediaType);
             
             await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(offer));
+            await processQueuedIceCandidates();
+
             const answer = await rtcPeerConnection.createAnswer();
             await rtcPeerConnection.setLocalDescription(answer);
             
@@ -2586,6 +2679,10 @@
     function rejectIncomingCall() {
         document.getElementById('incomingCallModal').style.display = 'none';
         stopRingtone();
+        if (callTimeoutTimer) {
+            clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = null;
+        }
         if (callPartnerId) {
             socket.emit('reject-call', { to: `user_${callPartnerId}` });
         }
@@ -2602,26 +2699,36 @@
     function setupPeerConnection(type) {
         rtcPeerConnection = new RTCPeerConnection(iceServers);
         
-        localStream.getTracks().forEach(track => {
-            rtcPeerConnection.addTrack(track, localStream);
-        });
+        if (localStream) {
+            localStream.getTracks().forEach(track => {
+                rtcPeerConnection.addTrack(track, localStream);
+            });
+        }
         
         rtcPeerConnection.ontrack = function(event) {
             if (type === 'video') {
-                document.getElementById('remoteVideo').srcObject = event.streams[0];
+                const remoteVideo = document.getElementById('remoteVideo');
+                remoteVideo.srcObject = event.streams[0];
+                remoteVideo.play().catch(e => console.log('Remote video autoplay:', e));
+                document.getElementById('callAvatar').style.display = 'none';
+                document.getElementById('callVideoContainer').style.display = 'block';
             } else {
-                const remoteAudio = document.createElement('audio');
-                remoteAudio.srcObject = event.streams[0];
-                remoteAudio.autoplay = true;
-                document.body.appendChild(remoteAudio);
-                window.remoteAudioEl = remoteAudio;
+                if (!window.remoteAudioEl) {
+                    window.remoteAudioEl = document.createElement('audio');
+                    window.remoteAudioEl.autoplay = true;
+                    document.body.appendChild(window.remoteAudioEl);
+                }
+                window.remoteAudioEl.srcObject = event.streams[0];
+                window.remoteAudioEl.play().catch(e => console.log('Remote audio autoplay:', e));
+                document.getElementById('callAvatar').style.display = 'flex';
+                document.getElementById('callVideoContainer').style.display = 'none';
             }
             document.getElementById('callStatusText').textContent = 'Connected';
             startCallTimer();
         };
         
         rtcPeerConnection.onicecandidate = function(event) {
-            if (event.candidate) {
+            if (event.candidate && callPartnerId) {
                 socket.emit('ice-candidate', {
                     to: `user_${callPartnerId}`,
                     candidate: event.candidate
@@ -2630,9 +2737,13 @@
         };
         
         rtcPeerConnection.onconnectionstatechange = function() {
-            if (rtcPeerConnection.connectionState === 'disconnected' || 
-                rtcPeerConnection.connectionState === 'failed' || 
-                rtcPeerConnection.connectionState === 'closed') {
+            if (!rtcPeerConnection) return;
+            if (rtcPeerConnection.connectionState === 'connected') {
+                document.getElementById('callStatusText').textContent = 'Connected';
+                startCallTimer();
+            } else if (rtcPeerConnection.connectionState === 'disconnected' || 
+                       rtcPeerConnection.connectionState === 'failed' || 
+                       rtcPeerConnection.connectionState === 'closed') {
                 resetCallState();
             }
         };
@@ -2646,6 +2757,7 @@
                 audioTrack.enabled = !audioTrack.enabled;
                 const btn = document.getElementById('callToggleMic');
                 btn.style.background = audioTrack.enabled ? 'rgba(255,255,255,0.1)' : '#ef4444';
+                btn.innerHTML = audioTrack.enabled ? '<i class="fa-solid fa-microphone"></i>' : '<i class="fa-solid fa-microphone-slash"></i>';
                 btn.title = audioTrack.enabled ? 'Mute Microphone' : 'Unmute Microphone';
             }
         }
@@ -2659,6 +2771,7 @@
                 videoTrack.enabled = !videoTrack.enabled;
                 const btn = document.getElementById('callToggleCam');
                 btn.style.background = videoTrack.enabled ? 'rgba(255,255,255,0.1)' : '#ef4444';
+                btn.innerHTML = videoTrack.enabled ? '<i class="fa-solid fa-video"></i>' : '<i class="fa-solid fa-video-slash"></i>';
                 btn.title = videoTrack.enabled ? 'Turn Camera Off' : 'Turn Camera On';
             }
         }
@@ -2682,6 +2795,11 @@
     function resetCallState() {
         stopRingtone();
         
+        if (callTimeoutTimer) {
+            clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = null;
+        }
+
         if (callDurationTimer) {
             clearInterval(callDurationTimer);
             callDurationTimer = null;
@@ -2701,6 +2819,11 @@
             try { window.remoteAudioEl.remove(); } catch(e){}
             window.remoteAudioEl = null;
         }
+
+        const remoteVideo = document.getElementById('remoteVideo');
+        if (remoteVideo) remoteVideo.srcObject = null;
+        const localVideo = document.getElementById('localVideo');
+        if (localVideo) localVideo.srcObject = null;
         
         document.getElementById('callOverlay').style.display = 'none';
         document.getElementById('incomingCallModal').style.display = 'none';
@@ -2708,6 +2831,7 @@
         callPartnerId = null;
         callMediaType = null;
         isCaller = false;
+        iceCandidatesQueue = [];
     }
 
     // Socket Event Bindings for Calling
@@ -2720,22 +2844,36 @@
         callPartnerId = data.caller;
         callMediaType = data.media_type;
         isCaller = false;
+        iceCandidatesQueue = [];
         
-        document.getElementById('incCallName').textContent = data.caller_name;
-        document.getElementById('incCallAvatar').textContent = data.caller_name.charAt(0).toUpperCase();
+        document.getElementById('incCallName').textContent = data.caller_name || 'Caller';
+        document.getElementById('incCallAvatar').textContent = data.caller_name ? data.caller_name.charAt(0).toUpperCase() : 'U';
         document.getElementById('incCallType').textContent = `Incoming ${data.media_type === 'video' ? 'Video' : 'Voice'} Call...`;
         document.getElementById('incomingCallModal').style.display = 'flex';
         
         playRingtone();
         
         window.incomingCallOffer = data.offer;
+
+        // Auto-dismiss if not answered in 45 seconds
+        if (callTimeoutTimer) clearTimeout(callTimeoutTimer);
+        callTimeoutTimer = setTimeout(() => {
+            if (window.incomingCallOffer) {
+                rejectIncomingCall();
+            }
+        }, 45000);
     });
 
     socket.on('answer-made', async function(data) {
         stopRingtone();
+        if (callTimeoutTimer) {
+            clearTimeout(callTimeoutTimer);
+            callTimeoutTimer = null;
+        }
         if (rtcPeerConnection) {
             try {
                 await rtcPeerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
+                await processQueuedIceCandidates();
                 document.getElementById('callStatusText').textContent = 'Connected';
                 startCallTimer();
             } catch (e) {
@@ -2745,12 +2883,14 @@
     });
 
     socket.on('ice-candidate', async function(data) {
-        if (rtcPeerConnection) {
+        if (rtcPeerConnection && rtcPeerConnection.remoteDescription && rtcPeerConnection.remoteDescription.type) {
             try {
                 await rtcPeerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
             } catch (e) {
                 console.error('Error adding ICE candidate:', e);
             }
+        } else {
+            iceCandidatesQueue.push(data.candidate);
         }
     });
 
@@ -2761,6 +2901,7 @@
     });
 
     socket.on('call-ended', function(data) {
+        showToast('Call ended', 'info');
         resetCallState();
     });
 
@@ -3136,16 +3277,16 @@ socket.on('user_status_changed', function(data) {
         
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
-        const menuWidth = 270;
-        const menuHeight = 340;
+        const menuWidth = 280;
+        const menuHeight = 350;
         
         let left = x;
         let top = y;
         
         if (x + menuWidth > screenWidth - 15) left = screenWidth - menuWidth - 15;
         if (y + menuHeight > screenHeight - 15) top = screenHeight - menuHeight - 15;
-        if (left < 10) left = 10;
-        if (top < 10) top = 10;
+        if (left < 15) left = 15;
+        if (top < 15) top = 15;
         
         menu.style.left = `${left}px`;
         menu.style.top = `${top}px`;
@@ -6839,7 +6980,7 @@ function updateSendBtnState() {
         if (!picker) return;
         picker.style.display = 'flex';
         
-        const pickerWidth = 320;
+        const pickerWidth = 300;
         const screenWidth = window.innerWidth;
         const screenHeight = window.innerHeight;
         
