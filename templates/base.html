@@ -135,8 +135,10 @@
             top: 20px;
             right: 20px;
             z-index: 9999;
+            pointer-events: none;
         }
         .flash-msg {
+            pointer-events: auto;
             padding: 12px 20px;
             border-radius: 8px;
             margin-bottom: 10px;
@@ -147,6 +149,25 @@
         }
         .flash-msg.error { border-color: var(--danger); }
         .flash-msg.success { border-color: var(--success); }
+
+        @media (max-width: 768px) {
+            .flash-container {
+                top: 65px;
+                left: 50%;
+                right: auto;
+                transform: translateX(-50%);
+                width: calc(100% - 32px);
+                max-width: 420px;
+                pointer-events: none;
+            }
+            .flash-msg {
+                pointer-events: auto;
+                padding: 10px 16px;
+                font-size: 13px;
+                text-align: center;
+                box-shadow: 0 4px 16px rgba(0,0,0,0.6);
+            }
+        }
 
         @keyframes slideIn {
             from { transform: translateX(100%); opacity: 0; }
